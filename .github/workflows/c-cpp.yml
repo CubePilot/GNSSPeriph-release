@@ -1,0 +1,30 @@
+name: Build GNSSPeriph
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false  # don't cancel if a job from the matrix fails
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: configure
+      run: ./waf configure
+    - name: build
+      run: ./waf AP_Periph
+    - name: configure bootloader
+      run: ./waf configure --bootloader
+    - name: build
+      run: ./waf bootloader
+      continue-on-error: true
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v2.2.4
+      with:
+        # Artifact name
+        name: GNSSPeriph
+        # A file, directory or wildcard pattern that describes what to upload
+        path: build/*/bin
