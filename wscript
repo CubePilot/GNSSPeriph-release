@@ -635,9 +635,9 @@ def _build_post_funs(bld):
 
 def _load_pre_build(bld):
     '''allow for a pre_build() function in build modules'''
+    brd = bld.get_chibios_board_cls('HerePro', bld.srcnode.find_node('../HerePro/hwdef.dat').abspath())()
     if bld.cmd == 'clean':
         return
-    brd = bld.get_chibios_board_cls('HerePro', bld.srcnode.find_node('../HerePro/hwdef.dat').abspath())()
     if bld.env.AP_PERIPH:
         dsdlc_gen_path = bld.bldnode.make_node('modules/DroneCAN/libcanard/dsdlc_generated/include').abspath()
         #check if canard dsdlc directory empty
@@ -694,11 +694,10 @@ ardupilotwaf.build_command('check-all',
     doc='shortcut for `waf check --alltests`',
 )
 
-for name in ('antennatracker', 'copter', 'heli', 'plane', 'rover', 'sub', 'blimp', 'bootloader','iofirmware','AP_Periph','replay'):
-    ardupilotwaf.build_command(name,
-        program_group_list=name,
-        doc='builds %s programs' % name,
-    )
+ardupilotwaf.build_command('AP_Periph',
+    program_group_list='AP_Periph',
+    doc='builds %s programs' % 'AP_Periph',
+)
 
 for program_group in ('all', 'bin', 'tool', 'examples', 'tests', 'benchmarks'):
     ardupilotwaf.build_command(program_group,
