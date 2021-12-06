@@ -681,6 +681,7 @@ def build(bld):
     _build_common_taskgens(bld)
 
     bld.recurse('AP_Periph')
+    bld.recurse('AP_Bootloader')
     bld.recurse('ardupilot/libraries/AP_Scripting')
 
     _build_post_funs(bld)
@@ -697,6 +698,11 @@ ardupilotwaf.build_command('check-all',
 ardupilotwaf.build_command('AP_Periph',
     program_group_list='AP_Periph',
     doc='builds %s programs' % 'AP_Periph',
+)
+
+ardupilotwaf.build_command('bootloader',
+    program_group_list='bootloader',
+    doc='builds %s programs' % 'bootloader',
 )
 
 for program_group in ('all', 'bin', 'tool', 'examples', 'tests', 'benchmarks'):
