@@ -27,25 +27,6 @@
 #include "GCS_MAVLink.h"
 #endif
 
-#if defined(HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_NCP5623_LED_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_NCP5623_BGR_LED_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_TOSHIBA_LED_WITHOUT_NOTIFY)
-#define AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
-    #if !defined(HAL_PERIPH_ENABLE_RC_OUT) && !defined(HAL_PERIPH_NOTIFY_WITHOUT_RCOUT)
-        #error "HAL_PERIPH_ENABLE_NOTIFY requires HAL_PERIPH_ENABLE_RC_OUT"
-    #endif
-    #ifdef HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY
-        #error "You cannot enable HAL_PERIPH_ENABLE_NOTIFY and HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY at the same time. Notify already includes it"
-    #endif
-    #ifdef AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY
-        #error "You cannot enable HAL_PERIPH_ENABLE_NOTIFY and any HAL_PERIPH_ENABLE_<device>_LED_WITHOUT_NOTIFY at the same time. Notify already includes them all"
-    #endif
-    #ifdef HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY
-        #error "You cannot use HAL_PERIPH_ENABLE_NOTIFY and HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY at the same time. Notify already includes it. Set param OUTx_FUNCTION=120"
-    #endif
-#endif
-
 #if defined(HAL_PERIPH_ENABLE_BATTERY_MPPT_PACKETDIGITAL) && HAL_MAX_CAN_PROTOCOL_DRIVERS < 2
 #error "Battery MPPT PacketDigital driver requires at least two CAN Ports"
 #endif
@@ -193,37 +174,23 @@ public:
     void hwesc_telem_update();
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
     SRV_Channels servo_channels;
     bool rcout_has_new_data_to_update;
-
-    void rcout_init();
-    void rcout_init_1Hz();
-    void rcout_esc(int16_t *rc, uint8_t num_channels);
-    void rcout_srv(const uint8_t actuator_id, const float command_value);
     void rcout_update();
-    void rcout_handle_safety_state(uint8_t safety_state);
-#endif
 
-
-#if defined(HAL_PERIPH_ENABLE_NOTIFY) || defined(HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY)
     void update_rainbow();
-#endif
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
+
     // notification object for LEDs, buzzers etc
     AP_Notify notify;
     uint64_t vehicle_state = 1; // default to initialisation
     float yaw_earth;
     uint32_t last_vehicle_state;
-
+    bool led_cmd_override = false;
     // Handled under LUA script to control LEDs
+    void led_command_override() { led_cmd_override = true; }
+
     float get_yaw_earth() { return yaw_earth; }
     uint32_t get_vehicle_state() { return vehicle_state; }
-#elif defined(AP_SCRIPTING_ENABLED)
-    // create dummy methods for the case when the user doesn't want to use the notify object
-    float get_yaw_earth() { return 0.0; }
-    uint32_t get_vehicle_state() { return 0.0; }
-#endif
 
 #if AP_SCRIPTING_ENABLED
     AP_Scripting scripting;

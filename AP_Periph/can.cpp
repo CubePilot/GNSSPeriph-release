@@ -509,68 +509,6 @@ static void handle_allocation_response(CanardInstance* ins, CanardRxTransfer* tr
     }
 }
 
-#if defined(HAL_PERIPH_ENABLE_NOTIFY) || defined(HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY)
-static uint32_t buzzer_start_ms;
-static uint32_t buzzer_len_ms;
-/*
-  handle BeepCommand
- */
-static void handle_beep_command(CanardInstance* ins, CanardRxTransfer* transfer)
-{
-    uavcan_equipment_indication_BeepCommand req;
-    if (uavcan_equipment_indication_BeepCommand_decode(transfer, &req)) {
-        return;
-    }
-    static bool initialised;
-    if (!initialised) {
-        initialised = true;
-        hal.rcout->init();
-        hal.util->toneAlarm_init(AP_Notify::Notify_Buzz_Builtin);
-    }
-    buzzer_start_ms = AP_HAL::native_millis();
-    buzzer_len_ms = req.duration*1000;
-#ifdef HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY
-    float volume = constrain_float(periph.g.buzz_volume/100.0f, 0, 1);
-#elif defined(HAL_PERIPH_ENABLE_NOTIFY)
-    float volume = constrain_float(periph.notify.get_buzz_volume()/100.0f, 0, 1);
-#endif
-    hal.util->toneAlarm_set_buzzer_tone(req.frequency, volume, uint32_t(req.duration*1000));
-}
-
-/*
-  update buzzer
- */
-static void can_buzzer_update(void)
-{
-    if (buzzer_start_ms != 0) {
-        uint32_t now = AP_HAL::native_millis();
-        if (now - buzzer_start_ms > buzzer_len_ms) {
-            hal.util->toneAlarm_set_buzzer_tone(0, 0, 0);
-            buzzer_start_ms = 0;
-        }
-    }
-}
-#endif // (HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY) || (HAL_PERIPH_ENABLE_NOTIFY)
-
-#if defined(HAL_GPIO_PIN_SAFE_LED) || defined(HAL_PERIPH_ENABLE_RC_OUT)
-static uint8_t safety_state;
-
-/*
-  handle SafetyState
- */
-static void handle_safety_state(CanardInstance* ins, CanardRxTransfer* transfer)
-{
-    ardupilot_indication_SafetyState req;
-    if (ardupilot_indication_SafetyState_decode(transfer, &req)) {
-        return;
-    }
-    safety_state = req.status;
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-    periph.rcout_handle_safety_state(safety_state);
-#endif
-}
-#endif // HAL_GPIO_PIN_SAFE_LED
-
 /*
   handle ArmingStatus
  */
@@ -614,86 +552,10 @@ static void handle_MovingBaselineData(CanardInstance* ins, CanardRxTransfer* tra
 #endif // HAL_PERIPH_ENABLE_GPS
 
 
-#if defined(AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_NOTIFY)
 static void set_rgb_led(uint8_t red, uint8_t green, uint8_t blue)
 {
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
     periph.notify.handle_rgb(red, green, blue);
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
     periph.rcout_has_new_data_to_update = true;
-#endif // HAL_PERIPH_ENABLE_RC_OUT
-#endif // HAL_PERIPH_ENABLE_NOTIFY
-
-#ifdef HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY
-    hal.rcout->set_serial_led_rgb_data(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY, -1, red, green, blue);
-    hal.rcout->serial_led_send(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY);
-#endif // HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY
-
-#ifdef HAL_PERIPH_ENABLE_NCP5623_LED_WITHOUT_NOTIFY
-    {
-        const uint8_t i2c_address = 0x38;
-        static AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev;
-        if (!dev) {
-            dev = std::move(hal.i2c_mgr->get_device(0, i2c_address));
-        }
-        WITH_SEMAPHORE(dev->get_semaphore());
-        dev->set_retries(0);
-        uint8_t v = 0x3f; // enable LED
-        dev->transfer(&v, 1, nullptr, 0);
-        v = 0x40 | red >> 3; // red
-        dev->transfer(&v, 1, nullptr, 0);
-        v = 0x60 | green >> 3; // green
-        dev->transfer(&v, 1, nullptr, 0);
-        v = 0x80 | blue >> 3; // blue
-        dev->transfer(&v, 1, nullptr, 0);
-    }
-#endif // HAL_PERIPH_ENABLE_NCP5623_LED_WITHOUT_NOTIFY
-
-#ifdef HAL_PERIPH_ENABLE_NCP5623_BGR_LED_WITHOUT_NOTIFY
-    {
-        const uint8_t i2c_address = 0x38;
-        static AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev;
-        if (!dev) {
-            dev = std::move(hal.i2c_mgr->get_device(0, i2c_address));
-        }
-        WITH_SEMAPHORE(dev->get_semaphore());
-        dev->set_retries(0);
-        uint8_t v = 0x3f; // enable LED
-        dev->transfer(&v, 1, nullptr, 0);
-        v = 0x40 | blue >> 3; // blue
-        dev->transfer(&v, 1, nullptr, 0);
-        v = 0x60 | green >> 3; // green
-        dev->transfer(&v, 1, nullptr, 0);
-        v = 0x80 | red >> 3; // red
-        dev->transfer(&v, 1, nullptr, 0);
-    }
-#endif // HAL_PERIPH_ENABLE_NCP5623_BGR_LED_WITHOUT_NOTIFY
-#ifdef HAL_PERIPH_ENABLE_TOSHIBA_LED_WITHOUT_NOTIFY
-    {
-#define TOSHIBA_LED_PWM0    0x01    // pwm0 register
-#define TOSHIBA_LED_ENABLE  0x04    // enable register
-#define TOSHIBA_LED_I2C_ADDR 0x55   // default I2C bus address
-
-        static AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev_toshiba;
-        if (!dev_toshiba) {
-            dev_toshiba = std::move(hal.i2c_mgr->get_device(0, TOSHIBA_LED_I2C_ADDR));
-        }
-        WITH_SEMAPHORE(dev_toshiba->get_semaphore());
-        dev_toshiba->set_retries(0); // use 0 because this is running on main thread.
-
-        // enable the led
-        dev_toshiba->write_register(TOSHIBA_LED_ENABLE, 0x03);
-
-        /* 4-bit for each color */
-        uint8_t val[4] = { 
-            TOSHIBA_LED_PWM0, 
-            (uint8_t)(blue >> 4),
-            (uint8_t)(green / 16), 
-            (uint8_t)(red / 16) 
-        };
-        dev_toshiba->transfer(val, sizeof(val), nullptr, 0);
-    }
-#endif // HAL_PERIPH_ENABLE_TOSHIBA_LED_WITHOUT_NOTIFY
 }
 
 /*
@@ -701,6 +563,7 @@ static void set_rgb_led(uint8_t red, uint8_t green, uint8_t blue)
  */
 static void handle_lightscommand(CanardInstance* ins, CanardRxTransfer* transfer)
 {
+    periph.led_command_override();
     uavcan_equipment_indication_LightsCommand req;
     if (uavcan_equipment_indication_LightsCommand_decode(transfer, &req)) {
         return;
@@ -712,11 +575,7 @@ static void handle_lightscommand(CanardInstance* ins, CanardRxTransfer* transfer
         uint8_t red = cmd.color.red<<3;
         uint8_t green = (cmd.color.green>>1)<<3;
         uint8_t blue = cmd.color.blue<<3;
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
         const int8_t brightness = periph.notify.get_rgb_led_brightness_percent();
-#elif defined(AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY)
-        const int8_t brightness = periph.g.led_brightness;
-#endif
         if (brightness != 100 && brightness >= 0) {
             const float scale = brightness * 0.01;
             red = constrain_int16(red * scale, 0, 255);
@@ -726,60 +585,7 @@ static void handle_lightscommand(CanardInstance* ins, CanardRxTransfer* transfer
         set_rgb_led(red, green, blue);
     }
 }
-#endif // AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY
 
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-static void handle_esc_rawcommand(CanardInstance* ins, CanardRxTransfer* transfer)
-{
-    uavcan_equipment_esc_RawCommand cmd;
-    if (uavcan_equipment_esc_RawCommand_decode(transfer, &cmd)) {
-        return;
-    }
-    periph.rcout_esc(cmd.cmd.data, cmd.cmd.len);
-}
-
-static void handle_act_command(CanardInstance* ins, CanardRxTransfer* transfer)
-{
-    // manual decoding due to TAO bug in libcanard generated code
-    if (transfer->payload_len < 1 || transfer->payload_len > UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_MAX_SIZE+1) {
-        return;
-    }
-
-    const uint8_t data_count = (transfer->payload_len / UAVCAN_EQUIPMENT_ACTUATOR_COMMAND_MAX_SIZE);
-    uavcan_equipment_actuator_Command data[data_count] {};
-
-    uint32_t offset = 0;
-    for (uint8_t i=0; i<data_count; i++) {
-        canardDecodeScalar(transfer, offset, 8, false, (void*)&data[i].actuator_id);
-        offset += 8;
-        canardDecodeScalar(transfer, offset, 8, false, (void*)&data[i].command_type);
-        offset += 8;
-
-#ifndef CANARD_USE_FLOAT16_CAST
-    uint16_t tmp_float = 0;
-#else
-    CANARD_USE_FLOAT16_CAST tmp_float = 0;
-#endif
-        canardDecodeScalar(transfer, offset, 16, false, (void*)&tmp_float);
-        offset += 16;
-#ifndef CANARD_USE_FLOAT16_CAST
-        data[i].command_value = canardConvertFloat16ToNativeFloat(tmp_float);
-#else
-        data[i].command_value = (float)tmp_float;
-#endif
-    }
-
-    for (uint8_t i=0; i < data_count; i++) {
-        if (data[i].command_type != UAVCAN_EQUIPMENT_ACTUATOR_COMMAND_COMMAND_TYPE_UNITLESS) {
-            // this is the only type we support
-            continue;
-        }
-        periph.rcout_srv(data[i].actuator_id, data[i].command_value);
-    }
-}
-#endif // HAL_PERIPH_ENABLE_RC_OUT
-
-#if defined(HAL_PERIPH_ENABLE_NOTIFY)
 static void handle_notify_state(CanardInstance* ins, CanardRxTransfer* transfer)
 {
     ardupilot_indication_NotifyState msg;
@@ -794,7 +600,6 @@ static void handle_notify_state(CanardInstance* ins, CanardRxTransfer* transfer)
     periph.vehicle_state = msg.vehicle_state;
     periph.last_vehicle_state = AP_HAL::millis();
 }
-#endif // HAL_PERIPH_ENABLE_NOTIFY
 
 #ifdef HAL_GPIO_PIN_SAFE_LED
 /*
@@ -916,18 +721,6 @@ static void onTransferReceived(CanardInstance* ins,
         handle_param_executeopcode(ins, transfer);
         break;
 
-#if defined(HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY) || defined (HAL_PERIPH_ENABLE_NOTIFY)
-    case UAVCAN_EQUIPMENT_INDICATION_BEEPCOMMAND_ID:
-        handle_beep_command(ins, transfer);
-        break;
-#endif
-
-#if defined(HAL_GPIO_PIN_SAFE_LED) || defined(HAL_PERIPH_ENABLE_RC_OUT)
-    case ARDUPILOT_INDICATION_SAFETYSTATE_ID:
-        handle_safety_state(ins, transfer);
-        break;
-#endif
-
     case UAVCAN_EQUIPMENT_SAFETY_ARMINGSTATUS_ID:
         handle_arming_status(ins, transfer);
         break;
@@ -944,27 +737,14 @@ static void onTransferReceived(CanardInstance* ins,
 #endif
 #endif
         
-#if defined(AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_NOTIFY)
     case UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_ID:
         handle_lightscommand(ins, transfer);
         break;
-#endif
 
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-    case UAVCAN_EQUIPMENT_ESC_RAWCOMMAND_ID:
-        handle_esc_rawcommand(ins, transfer);
-        break;
 
-    case UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_ID:
-        handle_act_command(ins, transfer);
-        break;
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
     case ARDUPILOT_INDICATION_NOTIFYSTATE_ID:
         handle_notify_state(ins, transfer);
         break;
-#endif
     }
 }
 
@@ -1014,24 +794,13 @@ static bool shouldAcceptTransfer(const CanardInstance* ins,
     case UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_ID:
         *out_data_type_signature = UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_SIGNATURE;
         return true;
-#if defined(HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY) || defined (HAL_PERIPH_ENABLE_NOTIFY)
-    case UAVCAN_EQUIPMENT_INDICATION_BEEPCOMMAND_ID:
-        *out_data_type_signature = UAVCAN_EQUIPMENT_INDICATION_BEEPCOMMAND_SIGNATURE;
-        return true;
-#endif
-#if defined(HAL_GPIO_PIN_SAFE_LED) || defined(HAL_PERIPH_ENABLE_RC_OUT)
-    case ARDUPILOT_INDICATION_SAFETYSTATE_ID:
-        *out_data_type_signature = ARDUPILOT_INDICATION_SAFETYSTATE_SIGNATURE;
-        return true;
-#endif
     case UAVCAN_EQUIPMENT_SAFETY_ARMINGSTATUS_ID:
         *out_data_type_signature = UAVCAN_EQUIPMENT_SAFETY_ARMINGSTATUS_SIGNATURE;
         return true;
-#if defined(AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_NOTIFY)
     case UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_ID:
         *out_data_type_signature = UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_SIGNATURE;
         return true;
-#endif
+
 #ifdef HAL_PERIPH_ENABLE_GPS
     case UAVCAN_EQUIPMENT_GNSS_RTCMSTREAM_ID:
         *out_data_type_signature = UAVCAN_EQUIPMENT_GNSS_RTCMSTREAM_SIGNATURE;
@@ -1043,20 +812,9 @@ static bool shouldAcceptTransfer(const CanardInstance* ins,
         return true;
 #endif
 #endif
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-    case UAVCAN_EQUIPMENT_ESC_RAWCOMMAND_ID:
-        *out_data_type_signature = UAVCAN_EQUIPMENT_ESC_RAWCOMMAND_SIGNATURE;
-        return true;
-    
-    case UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_ID:
-        *out_data_type_signature = UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_SIGNATURE;
-        return true;
-#endif
-#if defined(HAL_PERIPH_ENABLE_NOTIFY)
     case ARDUPILOT_INDICATION_NOTIFYSTATE_ID:
         *out_data_type_signature = ARDUPILOT_INDICATION_NOTIFYSTATE_SIGNATURE;
         return true;
-#endif
     default:
         break;
     }
@@ -1571,9 +1329,6 @@ void AP_Periph_FW::can_update()
     can_baro_update();
     can_airspeed_update();
     can_rangefinder_update();
-#if defined(HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY) || defined (HAL_PERIPH_ENABLE_NOTIFY)
-    can_buzzer_update();
-#endif
 #ifdef HAL_GPIO_PIN_SAFE_LED
     can_safety_LED_update();
 #endif
@@ -1589,9 +1344,9 @@ void AP_Periph_FW::can_update()
 #ifdef HAL_PERIPH_ENABLE_MSP
     msp_sensor_update();
 #endif
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-    rcout_update();
-#endif
+
+    periph.rcout_update();
+
     const uint32_t now_us = AP_HAL::micros();
     while ((AP_HAL::micros() - now_us) < 1000) {
         hal.scheduler->delay_microseconds(HAL_PERIPH_LOOP_DELAY_US);

@@ -163,17 +163,9 @@ void AP_Periph_FW::init()
     battery.lib.init();
 #endif
 
-#if defined(HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY) || defined(HAL_PERIPH_ENABLE_RC_OUT)
     hal.rcout->init();
-#endif
 
-#ifdef HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY
-    hal.rcout->set_serial_led_num_LEDs(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY, AP_HAL::RCOutput::MODE_NEOPIXEL);
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-    rcout_init();
-#endif
+    hal.rcout->force_safety_off();
 
 #ifdef HAL_PERIPH_ENABLE_ADSB
     adsb_init();
@@ -210,9 +202,7 @@ void AP_Periph_FW::init()
     }
 #endif
     
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
     notify.init();
-#endif
 
 #if AP_SCRIPTING_ENABLED
     scripting.init();
@@ -220,34 +210,18 @@ void AP_Periph_FW::init()
     start_ms = AP_HAL::native_millis();
 }
 
-#if (defined(HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY) && HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY == 8) || defined(HAL_PERIPH_ENABLE_NOTIFY)
 /*
   rotating rainbow pattern on startup
  */
 void AP_Periph_FW::update_rainbow()
 {
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
-    if (notify.get_led_len() != 8) {
-        return;
-    }
-#endif
-    static bool rainbow_done;
-    if (rainbow_done) {
+    if (led_cmd_override) {
         return;
     }
     uint32_t now = AP_HAL::native_millis();
-    if (now - start_ms > 1500) {
-        rainbow_done = true;
-#if defined (HAL_PERIPH_ENABLE_NOTIFY)
-        periph.notify.handle_rgb(0, 0, 0);
-#elif defined(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY)
-        hal.rcout->set_serial_led_rgb_data(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY, -1, 0, 0, 0);
-        hal.rcout->serial_led_send(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY);
-#endif
-        return;
-    }
+
     static uint32_t last_update_ms;
-    const uint8_t step_ms = 30;
+    const uint8_t step_ms = 100;
     if (now - last_update_ms < step_ms) {
         return;
     }
@@ -269,24 +243,14 @@ void AP_Periph_FW::update_rainbow()
     static uint8_t step;
     const uint8_t nsteps = ARRAY_SIZE(rgb_rainbow);
     float brightness = 0.3;
-    for (uint8_t n=0; n<8; n++) {
+    for (uint8_t n=0; n<4; n++) {
         uint8_t i = (step + n) % nsteps;
-#if defined (HAL_PERIPH_ENABLE_NOTIFY)
-        periph.notify.handle_rgb(
-#elif defined(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY)
-        hal.rcout->set_serial_led_rgb_data(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY, n,
-#endif
-                                        rgb_rainbow[i].red*brightness,
-                                        rgb_rainbow[i].green*brightness,
-                                        rgb_rainbow[i].blue*brightness);
+        periph.notify.handle_rgb(rgb_rainbow[i].red*brightness,
+                                 rgb_rainbow[i].green*brightness,
+                                 rgb_rainbow[i].blue*brightness);
     }
     step++;
-
-#if defined(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY)
-    hal.rcout->serial_led_send(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY);
-#endif
 }
-#endif // HAL_PERIPH_ENABLE_NOTIFY
 
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS && CH_DBG_ENABLE_STACK_CHECK == TRUE
@@ -310,6 +274,18 @@ void AP_Periph_FW::show_stack_free()
 }
 #endif
 
+void AP_Periph_FW::rcout_update()
+{
+    if (!rcout_has_new_data_to_update) {
+        return;
+    }
+    rcout_has_new_data_to_update = false;
+
+    SRV_Channels::calc_pwm();
+    SRV_Channels::cork();
+    SRV_Channels::output_ch_all();
+    SRV_Channels::push();
+}
 
 
 void AP_Periph_FW::update()
@@ -339,17 +315,11 @@ void AP_Periph_FW::update()
 #endif
         hal.scheduler->delay(1);
 #endif
-#ifdef HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY
-        hal.rcout->set_serial_led_num_LEDs(HAL_PERIPH_NEOPIXEL_CHAN_WITHOUT_NOTIFY, HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY, AP_HAL::RCOutput::MODE_NEOPIXEL);
-#endif
-
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
         check_for_serial_reboot_cmd(HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT);
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-        rcout_init_1Hz();
-#endif
+    SRV_Channels::enable_aux_servos();
 
 #if HAL_GCS_ENABLED
         gcs().send_message(MSG_HEARTBEAT);
@@ -385,9 +355,7 @@ void AP_Periph_FW::update()
     if (now - fiftyhz_last_update_ms >= 20) {
         // update at 50Hz
         fiftyhz_last_update_ms = now;
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
         notify.update();
-#endif
 #if HAL_GCS_ENABLED
         gcs().update_receive();
         gcs().update_send();
@@ -400,9 +368,8 @@ void AP_Periph_FW::update()
 
     can_update();
 
-#if (defined(HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY) && HAL_PERIPH_NEOPIXEL_COUNT_WITHOUT_NOTIFY == 8) || defined(HAL_PERIPH_ENABLE_NOTIFY)
     update_rainbow();
-#endif
+
 #ifdef HAL_PERIPH_ENABLE_ADSB
     adsb_update();
 #endif
@@ -465,11 +432,6 @@ void AP_Periph_FW::check_for_serial_reboot_cmd(const int8_t serial_index)
 // This is copied from AP_Vehicle::reboot(bool hold_in_bootloader) minus the actual reboot
 void AP_Periph_FW::prepare_reboot()
 {
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
-        // force safety on
-        hal.rcout->force_safety_on();
-#endif
-
         // flush pending parameter writes
         AP_Param::flush();
 

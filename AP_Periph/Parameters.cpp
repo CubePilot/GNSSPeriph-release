@@ -137,17 +137,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @User: Advanced
     GSCALAR(serial_number, "BRD_SERIAL_NUM", 0),
 
-#ifdef HAL_PERIPH_ENABLE_BUZZER_WITHOUT_NOTIFY
-    // @Param: BUZZER_VOLUME
-    // @DisplayName: Buzzer volume
-    // @Description: Control the volume of the buzzer
-    // @Range: 0 100
-    // @Units: %
-    // @Increment: 1
-    // @User: Advanced
-    GSCALAR(buzz_volume,     "BUZZER_VOLUME", 100),
-#endif
-
 #ifdef HAL_PERIPH_ENABLE_GPS
     // GPS driver
     // @Group: GPS
@@ -198,17 +187,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     GSCALAR(baro_enable, "BARO_ENABLE", 1),
-#endif
-
-#ifdef AP_PERIPH_HAVE_LED_WITHOUT_NOTIFY
-    // @Param: LED_BRIGHTNESS
-    // @DisplayName: LED Brightness
-    // @Description: Select the RGB LED brightness level.
-    // @Range: 0 100
-    // @Units: %
-    // @Increment: 1
-    // @User: Standard
-    GSCALAR(led_brightness, "LED_BRIGHTNESS", HAL_PERIPH_LED_BRIGHT_DEFAULT),
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_AIRSPEED
@@ -289,20 +267,10 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(esc_number, "ESC_NUMBER", 0),
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_RC_OUT
     // Servo driver
     // @Group: OUT
     // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
     GOBJECT(servo_channels, "OUT",     SRV_Channels),
-
-    // @Param: ESC_PWM_TYPE
-    // @DisplayName: Output PWM type
-    // @Description: This selects the output PWM type, allowing for normal PWM continuous output, OneShot, brushed or DShot motor output
-    // @Values: 0:Normal,1:OneShot,2:OneShot125,3:Brushed,4:DShot150,5:DShot300,6:DShot600,7:DShot1200
-    // @User: Advanced
-    // @RebootRequired: True
-    GSCALAR(esc_pwm_type, "ESC_PWM_TYPE",     0),
-#endif
 
 #ifdef HAL_PERIPH_ENABLE_MSP
     // @Param: MSP_PORT
@@ -315,11 +283,9 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(msp_port, "MSP_PORT", AP_PERIPH_MSP_PORT_DEFAULT),
 #endif
     
-#ifdef HAL_PERIPH_ENABLE_NOTIFY
     // @Group: NTF_
     // @Path: ../libraries/AP_Notify/AP_Notify.cpp
     GOBJECT(notify, "NTF_",  AP_Notify),
-#endif
 
 #if HAL_LOGGING_ENABLED
     // @Group: LOG
