@@ -1,0 +1,78 @@
+# hw definition file for processing by chibios_hwdef.py
+# for H757
+
+# MCU class and specific type
+MCU STM32H7xx STM32H757xx
+
+define CORE_CM7
+define SMPS_PWR
+
+# setup build for a peripheral firmware
+env AP_PERIPH 1
+
+FLASH_SIZE_KB 2048
+APJ_BOARD_ID 1043
+
+
+# the location where the bootloader will put the firmware
+# the H757 has 128k sectors
+FLASH_BOOTLOADER_LOAD_KB 256
+FLASH_RESERVE_START_KB 256
+
+# use last 2 pages for flash storage
+# H757 has 16 pages of 128k each
+STORAGE_FLASH_PAGE 14
+define HAL_STORAGE_SIZE 32768
+
+# reserve space for flash storage in last 2 sectors
+FLASH_RESERVE_END_KB 256
+
+# crystal frequency
+OSCILLATOR_HZ 24000000
+
+PB6 USART1_TX  USART1
+PB7 USART1_RX  USART1
+
+PD5 USART2_TX  USART2
+PD6 USART2_RX  USART2
+
+SERIAL_ORDER USART1 USART2
+
+define HAL_SERIAL0_PROTOCOL SerialProtocol_None
+define HAL_SERIAL1_PROTOCOL SerialProtocol_GPS
+
+PA13 JTMS-SWDIO SWD
+PA14 JTCK-SWCLK SWD
+
+define HAL_LED_ON 0
+
+# enable CAN support
+PD0 CAN1_RX CAN1
+PD1 CAN1_TX CAN1
+PD2 SLEEPCAN1 OUTPUT PUSHPULL SPEED_LOW LOW 
+PD3 TERMCAN1 OUTPUT LOW GPIO(3)
+
+PB12 CAN2_RX CAN2
+PB13 CAN2_TX CAN2
+PB10 SLEEPCAN2 OUTPUT PUSHPULL SPEED_LOW LOW 
+PB11 TERMCAN2 OUTPUT LOW GPIO(4)
+
+PB3 SPI3_SCK SPI3
+PB4 SPI3_MISO SPI3
+PB2 SPI3_MOSI SPI3
+PB1 MAG_CS CS
+
+# analog input
+define HAL_USE_ADC FALSE
+define STM32_ADC_USE_ADC1 FALSE
+define HAL_DISABLE_ADC_DRIVER TRUE
+
+define HAL_GCS_ENABLED 0
+
+SPIDEV rm3100 SPI3 DEVID1    MAG_CS MODE0  1*MHZ  1*MHZ
+COMPASS RM3100 SPI:rm3100 false ROTATION_PITCH_180
+
+define CAN_APP_NODE_NAME "com.cubepilot.here3+"
+
+define HAL_PERIPH_ENABLE_GPS 1
+define GPS_MOVING_BASELINE 1
