@@ -192,12 +192,6 @@ void AP_Periph_FW::init()
     pwm_hardpoint_init();
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_MSP
-    if (g.msp_port >= 0) {
-        msp_init(hal.serial(g.msp_port));
-    }
-#endif
-    
     notify.init();
 
 #if AP_SCRIPTING_ENABLED

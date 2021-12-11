@@ -35,7 +35,6 @@ public:
         k_param_servo_channels,
         k_param_rangefinder_port,
         k_param_gps_port,
-        k_param_msp_port,
         k_param_notify,
         k_param_logger,
         k_param_log_bitmask,
@@ -86,11 +85,6 @@ public:
     AP_Int8 gps_mb_only_can_port;
 #endif
 #endif
-
-#ifdef HAL_PERIPH_ENABLE_MSP
-    AP_Int8 msp_port;
-#endif
-
 
     AP_Int8 debug;
 

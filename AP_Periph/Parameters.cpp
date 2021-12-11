@@ -262,17 +262,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Group: OUT
     // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
     GOBJECT(servo_channels, "OUT",     SRV_Channels),
-
-#ifdef HAL_PERIPH_ENABLE_MSP
-    // @Param: MSP_PORT
-    // @DisplayName: MSP Serial Port
-    // @Description: This is the serial port number where SERIALx_PROTOCOL will be set to MSP
-    // @Range: 0 10
-    // @Increment: 1
-    // @User: Advanced
-    // @RebootRequired: True
-    GSCALAR(msp_port, "MSP_PORT", AP_PERIPH_MSP_PORT_DEFAULT),
-#endif
     
     // @Group: NTF_
     // @Path: ../libraries/AP_Notify/AP_Notify.cpp

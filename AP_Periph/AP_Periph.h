@@ -118,24 +118,6 @@ public:
     // change the rest of your params or verify it succeeded.
     AP_CANManager::Driver_Type can_protocol_cached[HAL_NUM_CAN_IFACES];
 #endif
-
-#ifdef HAL_PERIPH_ENABLE_MSP
-    struct {
-        AP_MSP msp;
-        MSP::msp_port_t port;
-        uint32_t last_gps_ms;
-        uint32_t last_baro_ms;
-        uint32_t last_mag_ms;
-        uint32_t last_airspeed_ms;
-    } msp;
-    void msp_init(AP_HAL::UARTDriver *_uart);
-    void msp_sensor_update(void);
-    void send_msp_packet(uint16_t cmd, void *p, uint16_t size);
-    void send_msp_GPS(void);
-    void send_msp_compass(void);
-    void send_msp_baro(void);
-    void send_msp_airspeed(void);
-#endif
     
 #ifdef HAL_PERIPH_ENABLE_ADSB
     void adsb_init();

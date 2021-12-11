@@ -1310,9 +1310,6 @@ void AP_Periph_FW::can_update()
 #ifdef HAL_PERIPH_ENABLE_PWM_HARDPOINT
     pwm_hardpoint_update();
 #endif
-#ifdef HAL_PERIPH_ENABLE_MSP
-    msp_sensor_update();
-#endif
 
     periph.rcout_update();
 
