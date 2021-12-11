@@ -258,15 +258,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(hardpoint_rate, "HARDPOINT_RATE", 100),
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_HWESC
-    // @Param: ESC_NUMBER
-    // @DisplayName: ESC number
-    // @Description: This is the ESC number to report as in UAVCAN ESC telemetry feedback packets.
-    // @Increment: 1
-    // @User: Advanced
-    GSCALAR(esc_number, "ESC_NUMBER", 0),
-#endif
-
     // Servo driver
     // @Group: OUT
     // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp

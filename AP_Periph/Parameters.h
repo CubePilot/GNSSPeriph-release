@@ -28,7 +28,6 @@ public:
         k_param_hardpoint_id,
         k_param_hardpoint_rate,
         k_param_baro_enable,
-        k_param_esc_number,
         k_param_battery,
         k_param_debug,
         k_param_serial_number,
@@ -79,10 +78,6 @@ public:
 #ifdef HAL_PERIPH_ENABLE_PWM_HARDPOINT
     AP_Int16 hardpoint_id;
     AP_Int8 hardpoint_rate;
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_HWESC
-    AP_Int8 esc_number;
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_GPS

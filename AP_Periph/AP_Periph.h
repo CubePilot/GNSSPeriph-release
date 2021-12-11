@@ -14,7 +14,6 @@
 #include <AP_MSP/AP_MSP.h>
 #include <AP_MSP/msp.h>
 #include "../AP_Bootloader/app_comms.h"
-#include "hwing_esc.h"
 #include <AP_CANManager/AP_CANManager.h>
 #include <AP_Scripting/AP_Scripting.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
@@ -169,10 +168,6 @@ public:
     } pwm_hardpoint;
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_HWESC
-    HWESC_Telem hwesc_telem;
-    void hwesc_telem_update();
-#endif
 
     SRV_Channels servo_channels;
     bool rcout_has_new_data_to_update;
