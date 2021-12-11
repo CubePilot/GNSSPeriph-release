@@ -97,8 +97,7 @@ def init(ctx):
 
     Configure.autoconfig = 'clobber' if env.AUTOCONFIG else False
 
-    board = ctx.options.board or env.BOARD
-
+    board = env.BOARD or ctx.options.board
     if not board:
         return
 
@@ -358,10 +357,7 @@ def _collect_autoconfig_files(cfg):
                 cfg.files.append(p)
 
 def configure(cfg):
-	# we need to enable debug mode when building for gconv, and force it to sitl
-    if cfg.options.board is None:
-        cfg.options.board = 'sitl'
-        
+	# we need to enable debug mode when building for gconv, and force it to sitl        
     cfg.env.BOARD = cfg.options.board
     cfg.env.DEBUG = cfg.options.debug
     cfg.env.COVERAGE = cfg.options.coverage
@@ -397,7 +393,7 @@ def configure(cfg):
     cfg.load('ap_library')
 
     cfg.msg('Setting board to', cfg.options.board)
-    cfg.get_chibios_board_cls('HerePro', cfg.srcnode.find_node('../HerePro/hwdef.dat').abspath())().configure(cfg)
+    cfg.get_chibios_board_cls(cfg.options.board, cfg.srcnode.find_node('../{}/hwdef.dat'.format(cfg.options.board)).abspath())().configure(cfg)
 
     cfg.load('clang_compilation_database')
     cfg.load('waf_unit_test')
@@ -635,7 +631,7 @@ def _build_post_funs(bld):
 
 def _load_pre_build(bld):
     '''allow for a pre_build() function in build modules'''
-    brd = bld.get_chibios_board_cls('HerePro', bld.srcnode.find_node('../HerePro/hwdef.dat').abspath())()
+    brd = bld.get_chibios_board_cls(bld.env.BOARD, bld.srcnode.find_node('../{}/hwdef.dat'.format(bld.env.BOARD)).abspath())()
     if bld.cmd == 'clean':
         return
     if bld.env.AP_PERIPH:
