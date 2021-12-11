@@ -727,6 +727,82 @@ void can_start()
 }
 
 
+struct profiLED_color_s {
+    uint8_t b;
+    uint8_t r;
+    uint8_t g;
+};
+
+static struct profiLED_color_s color_func(uint8_t led_idx)
+{
+    (void)led_idx;
+    static int8_t mul = 1;
+    uint32_t curr_time = AP_HAL::millis();
+    profiLED_color_s color = {};
+    static uint32_t last_breath_time = 0;
+    static uint32_t last_finish_breath_time = 0;
+    static int16_t blue = 0;
+    if (curr_time - last_breath_time > 100) {
+        blue += mul * 15;
+        last_breath_time = curr_time;
+    }
+    if (blue < 0) {
+        blue = 0;
+    } else if (blue > 150) {
+        blue = 150;
+    }
+    if (curr_time - last_finish_breath_time > 1000) {
+        mul *= -1;
+        last_finish_breath_time = curr_time;
+    }
+    color.b = blue;
+    return color;
+}
+
+static void profiLED_output_gpio(uint32_t num_leds) {
+    const uint32_t min_bits = num_leds*25+50;
+    const uint8_t num_leading_zeros = 8-min_bits%8 + 50;
+    const uint32_t output_stream_byte_length = (min_bits+7)/8;
+
+    uint32_t curr_led_idx = 0;
+
+    union {
+        struct profiLED_color_s struct_val;
+        uint8_t bytes_val[3];
+    } curr_led_color;
+
+    curr_led_color.struct_val = color_func(curr_led_idx);
+
+    for (uint32_t i=0; i<output_stream_byte_length; i++) {
+        for (uint8_t bit = 0; bit < 8; bit++) {
+            uint32_t out_bit_idx = i*8+bit;
+            uint8_t bit_val;
+            if (out_bit_idx < num_leading_zeros) {
+                bit_val = 0;
+            } else if ((out_bit_idx-num_leading_zeros) % 25 == 0) {
+                bit_val = 1;
+            } else {
+                uint32_t in_bit_idx = out_bit_idx - num_leading_zeros - (out_bit_idx - num_leading_zeros)/25;
+                uint32_t in_led_idx = in_bit_idx/24;
+
+                if (curr_led_idx != in_led_idx) {
+                    curr_led_idx = in_led_idx;
+                    curr_led_color.struct_val = color_func(curr_led_idx);
+                }
+
+                bit_val = (curr_led_color.bytes_val[(in_bit_idx%24)/8] >> (8-in_bit_idx%8)) & 1;
+            }
+
+            palClearLine(HAL_GPIO_PIN_LED_SCK);
+            // TODO insert delay
+            palWriteLine(HAL_GPIO_PIN_LED_DI, bit_val);
+            // TODO insert delay
+            palSetLine(HAL_GPIO_PIN_LED_SCK);
+            // TODO insert delay
+        }
+    }
+}
+
 void can_update()
 {
     // do one loop of CAN support. If we are doing a few update then
@@ -741,6 +817,7 @@ void can_update()
             last_1Hz_ms = now;
             process1HzTasks(AP_HAL::micros64());
         }
+        profiLED_output_gpio(4);
         if (fw_update.node_id != 0) {
             send_fw_read();
         }
