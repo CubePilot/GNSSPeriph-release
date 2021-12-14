@@ -34,7 +34,6 @@ public:
         k_param_adsb_port,
         k_param_servo_channels,
         k_param_rangefinder_port,
-        k_param_gps_port,
         k_param_notify,
         k_param_logger,
         k_param_log_bitmask,
@@ -80,7 +79,6 @@ public:
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_GPS
-    AP_Int8 gps_port;
 #if HAL_NUM_CAN_IFACES >= 2
     AP_Int8 gps_mb_only_can_port;
 #endif

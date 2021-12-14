@@ -14,9 +14,6 @@ extern const AP_HAL::HAL &hal;
 #define HAL_PERIPH_RANGEFINDER_PORT_DEFAULT 3
 #endif
 
-#ifndef HAL_PERIPH_GPS_PORT_DEFAULT
-#define HAL_PERIPH_GPS_PORT_DEFAULT 3
-#endif
 
 #ifndef HAL_PERIPH_ADSB_BAUD_DEFAULT
 #define HAL_PERIPH_ADSB_BAUD_DEFAULT 57600
@@ -142,15 +139,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Group: GPS
     // @Path: ../libraries/AP_GPS/AP_GPS.cpp
     GOBJECT(gps, "GPS", AP_GPS),
-
-    // @Param: GPS_PORT
-    // @DisplayName: GPS Serial Port
-    // @Description: This is the serial port number where SERIALx_PROTOCOL will be set to GPS.
-    // @Range: 0 10
-    // @Increment: 1
-    // @User: Advanced
-    // @RebootRequired: True
-    GSCALAR(gps_port, "GPS_PORT", HAL_PERIPH_GPS_PORT_DEFAULT),
 
 #if HAL_NUM_CAN_IFACES >= 2
     // @Param: MB_CAN_PORT
@@ -287,11 +275,11 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Range: 1 255
     // @User: Advanced
     GSCALAR(sysid_this_mav,         "SYSID_THISMAV",  MAV_SYSTEM_ID),
+#endif
 
     // @Group: SERIAL
     // @Path: ../libraries/AP_SerialManager/AP_SerialManager.cpp
     GOBJECT(serial_manager, "SERIAL",   AP_SerialManager),
-#endif
 
 #if AP_SCRIPTING_ENABLED
     // @Group: SCR_

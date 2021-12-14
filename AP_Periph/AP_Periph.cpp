@@ -141,8 +141,7 @@ void AP_Periph_FW::init()
     }
 
 #ifdef HAL_PERIPH_ENABLE_GPS
-    if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && g.gps_port >= 0) {
-        serial_manager.set_protocol_and_baud(g.gps_port, AP_SerialManager::SerialProtocol_GPS, AP_SERIALMANAGER_GPS_BAUD);
+    if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE) {
 #if HAL_LOGGING_ENABLED
         #define MASK_LOG_GPS (1<<2)
         gps.set_log_gps_bit(MASK_LOG_GPS);
