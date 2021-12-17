@@ -1312,15 +1312,55 @@ void AP_Periph_FW::can_update()
 #endif
 
     periph.rcout_update();
-
+    can_imu_update();
+#if !HAL_INS_ENABLED // we wait in INS method otherwise
     const uint32_t now_us = AP_HAL::micros();
     while ((AP_HAL::micros() - now_us) < 1000) {
         hal.scheduler->delay_microseconds(HAL_PERIPH_LOOP_DELAY_US);
+#else
+    {
+#endif
         processTx();
         processRx();
     }
 }
 
+/*
+    update IMU
+*/
+void AP_Periph_FW::can_imu_update(void)
+{
+#if HAL_INS_ENABLED
+    if (imu.get_accel_count()) {
+        imu.update();
+    } else {
+        return;
+    }
+    static uint8_t pkt_count;//, update_count;
+    // update_count++;
+    // if (update_count % 10 != 0) {
+    //     return;
+    // }
+    dronecan_sensors_inertial_PointValues pkt {};
+    const Vector3f accel_pnt = imu.get_accel(0);
+    const Vector3f gyro_pnt = imu.get_gyro(0);
+
+    for (uint8_t i=0; i<3; i++) {
+        pkt.accel[i] = accel_pnt[i];
+        pkt.gyro[i] = gyro_pnt[i];
+    }
+    pkt.count = pkt_count++;
+
+    uint8_t buffer[DRONECAN_SENSORS_INERTIAL_POINTVALUES_ID] {};
+    uint16_t total_size = dronecan_sensors_inertial_PointValues_encode(&pkt, buffer);
+
+    canard_broadcast(DRONECAN_SENSORS_INERTIAL_POINTVALUES_SIGNATURE,
+                    DRONECAN_SENSORS_INERTIAL_POINTVALUES_ID,
+                    CANARD_TRANSFER_PRIORITY_HIGH,
+                    &buffer[0],
+                    total_size);
+#endif
+}
 /*
   update CAN magnetometer
  */

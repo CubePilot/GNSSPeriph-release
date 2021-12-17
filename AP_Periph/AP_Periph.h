@@ -16,6 +16,8 @@
 #include "../AP_Bootloader/app_comms.h"
 #include <AP_CANManager/AP_CANManager.h>
 #include <AP_Scripting/AP_Scripting.h>
+#include <AP_InertialSensor/AP_InertialSensor.h>
+
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
 #include <AP_HAL_ChibiOS/CANIface.h>
 #elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -71,6 +73,7 @@ public:
     void can_airspeed_update();
     void can_rangefinder_update();
     void can_battery_update();
+    void can_imu_update();
 
     void load_parameters();
     void prepare_reboot();
@@ -181,6 +184,11 @@ public:
 #if HAL_GCS_ENABLED
     GCS_Periph _gcs;
 #endif
+
+#if HAL_INS_ENABLED
+    AP_InertialSensor imu;
+#endif
+
     // setup the var_info table
     AP_Param param_loader{var_info};
 

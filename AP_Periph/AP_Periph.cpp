@@ -140,6 +140,10 @@ void AP_Periph_FW::init()
         printf("Reboot after watchdog reset\n");
     }
 
+#if HAL_INS_ENABLED
+    imu.init(1000);
+#endif
+
 #ifdef HAL_PERIPH_ENABLE_GPS
     if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE) {
 #if HAL_LOGGING_ENABLED
@@ -288,6 +292,7 @@ void AP_Periph_FW::update()
             palToggleLine(HAL_GPIO_PIN_LED);
         }
 #endif
+
 #if 0
 #ifdef HAL_PERIPH_ENABLE_GPS
         hal.serial(0)->printf("GPS status: %u\n", (unsigned)gps.status());
