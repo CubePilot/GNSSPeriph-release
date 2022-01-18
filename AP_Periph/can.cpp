@@ -586,6 +586,22 @@ static void handle_lightscommand(CanardInstance* ins, CanardRxTransfer* transfer
     }
 }
 
+/*
+    handle global time sync
+*/
+static void handle_global_time_sync(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    uavcan_protocol_GlobalTimeSync msg;
+    if (uavcan_protocol_GlobalTimeSync_decode(transfer, &msg)) {
+        return;
+    }
+    if (periph.last_time_sync_usec != 0) {
+        // calculate the time offset from master
+        periph.time_offset_usec = periph.jitter.correct_offboard_timestamp_usec(periph.last_time_sync_usec, msg.previous_transmission_timestamp_usec);
+    }
+    periph.last_time_sync_usec = transfer->timestamp_usec;
+}
+
 static void handle_notify_state(CanardInstance* ins, CanardRxTransfer* transfer)
 {
     ardupilot_indication_NotifyState msg;
@@ -741,6 +757,9 @@ static void onTransferReceived(CanardInstance* ins,
         handle_lightscommand(ins, transfer);
         break;
 
+    case UAVCAN_PROTOCOL_GLOBALTIMESYNC_ID:
+        handle_global_time_sync(ins, transfer);
+        break;
 
     case ARDUPILOT_INDICATION_NOTIFYSTATE_ID:
         handle_notify_state(ins, transfer);
@@ -799,6 +818,10 @@ static bool shouldAcceptTransfer(const CanardInstance* ins,
         return true;
     case UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_ID:
         *out_data_type_signature = UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_SIGNATURE;
+        return true;
+
+    case UAVCAN_PROTOCOL_GLOBALTIMESYNC_ID:
+        *out_data_type_signature = UAVCAN_PROTOCOL_GLOBALTIMESYNC_SIGNATURE;
         return true;
 
 #ifdef HAL_PERIPH_ENABLE_GPS

@@ -18,6 +18,7 @@
 #include <AP_Scripting/AP_Scripting.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 
+#include <AP_RTC/JitterCorrection.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
 #include <AP_HAL_ChibiOS/CANIface.h>
 #elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -198,6 +199,8 @@ public:
     uint32_t last_gps_update_ms;
     uint32_t last_baro_update_ms;
     uint32_t last_airspeed_update_ms;
+    uint64_t last_time_sync_usec;
+    int64_t time_offset_usec;
 
     static AP_Periph_FW *_singleton;
 
@@ -205,6 +208,8 @@ public:
     void show_stack_free();
 
     static bool no_iface_finished_dna;
+    bool saw_lock_once;
+    JitterCorrection jitter;
 };
 
 namespace AP
