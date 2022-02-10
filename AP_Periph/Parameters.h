@@ -46,6 +46,9 @@ public:
         k_param_serial_manager,
         k_param_gps_mb_only_can_port,
         k_param_scripting,
+        k_param_can_fdmode,
+        k_param_can_fdbaudrate0,
+        k_param_can_fdbaudrate1,
     };
 
     AP_Int16 format_version;
@@ -95,6 +98,9 @@ public:
 #if HAL_GCS_ENABLED
     AP_Int16 sysid_this_mav;
 #endif
+
+    AP_Int8 can_fdmode;
+    AP_Int32 can_fdbaudrate[HAL_NUM_CAN_IFACES];
 
     Parameters() {}
 };

@@ -286,6 +286,18 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Path: ../libraries/AP_Scripting/AP_Scripting.cpp
     GOBJECT(scripting, "SCR_", AP_Scripting),
 #endif
+
+    // can node FD Out mode
+    GSCALAR(can_fdmode,     "CAN_FDMODE", 0),
+
+    // can node FD Out baudrate
+    GARRAY(can_fdbaudrate, 0,     "CAN_FDBAUDRATE", 8000000),
+
+#if HAL_NUM_CAN_IFACES >= 2
+    // can node FD Out baudrate
+    GARRAY(can_fdbaudrate, 1,     "CAN2_FDBAUDRATE", 8000000),
+#endif
+
     AP_VAREND
 };
 
