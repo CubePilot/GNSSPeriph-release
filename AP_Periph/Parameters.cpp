@@ -1,3 +1,4 @@
+#include <AP_HAL/AP_HAL_Boards.h>
 #include "AP_Periph.h"
 
 extern const AP_HAL::HAL &hal;

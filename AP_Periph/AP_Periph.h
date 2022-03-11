@@ -19,11 +19,8 @@
 #include <AP_InertialSensor/AP_InertialSensor.h>
 
 #include <AP_RTC/JitterCorrection.h>
-#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-#include <AP_HAL_ChibiOS/CANIface.h>
-#elif CONFIG_HAL_BOARD == HAL_BOARD_SITL
-#include <AP_HAL_SITL/CANSocketIface.h>
-#endif
+#include <AP_HAL/CANIface.h>
+
 
 #if HAL_GCS_ENABLED
 #include "GCS_MAVLink.h"

@@ -13,6 +13,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <AP_HAL/AP_HAL_Boards.h>
 #include "GCS_MAVLink.h"
 #include "AP_Periph.h"
 
