@@ -1218,6 +1218,12 @@ void AP_Periph_FW::can_start()
     }
 #endif // HAL_PERIPH_ENFORCE_AT_LEAST_ONE_PORT_IS_UAVCAN_1MHz
 
+#ifdef HAL_GPIO_PIN_TERMCAN1
+    for (uint8_t i=0; i<ARRAY_SIZE(can_term_lines); i++){
+        palWriteLine(can_term_lines[i], 1);
+    }
+#endif
+
     for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
         can_iface_periph[i] = new ChibiOS::CANIface();
