@@ -1346,16 +1346,6 @@ void AP_Periph_FW::can_update()
         // update LEDs as well
         if (i2c_new_led_data) {
             i2c_new_led_data = false;
-            // const int8_t brightness = periph.notify.get_rgb_led_brightness_percent();
-            // uint8_t red = i2c_led_color_red;
-            // uint8_t green = i2c_led_color_green;
-            // uint8_t blue = i2c_led_color_blue;
-            // if (brightness != 100 && brightness >= 0) {
-            //     const float scale = brightness * 0.01;
-            //     red = constrain_int16(red * scale, 0, 255);
-            //     green = constra1in_int16(green * scale, 0, 255);
-            //     blue = constrain_int16(blue * scale, 0, 255);
-            // }
             set_rgb_led(i2c_led_color_red, i2c_led_color_green, i2c_led_color_blue);
         }
     }

@@ -348,7 +348,9 @@ void AP_Periph_FW::update()
 
     can_update();
 
-    update_rainbow();
+    if (!g.serial_i2c_mode) {
+        update_rainbow();
+    }
 
 #ifdef HAL_PERIPH_ENABLE_ADSB
     adsb_update();
