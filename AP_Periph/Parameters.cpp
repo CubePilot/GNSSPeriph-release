@@ -299,6 +299,9 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GARRAY(can_fdbaudrate, 1,     "CAN2_FDBAUDRATE", 8000000),
 #endif
 
+    // select serial i2c mode and disable can gps
+    GSCALAR(serial_i2c_mode,     "SER_I2C_MODE", 0),
+
     AP_VAREND
 };
 

@@ -20,7 +20,9 @@
 
 #include <AP_RTC/JitterCorrection.h>
 #include <AP_HAL/CANIface.h>
+#include <AP_HAL_ChibiOS/EventSource.h>
 
+#include <ch.h>
 
 #if HAL_GCS_ENABLED
 #include "GCS_MAVLink.h"
@@ -81,6 +83,8 @@ public:
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
     void check_for_serial_reboot_cmd(const int8_t serial_index);
 #endif
+
+    void gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp);
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
     static ChibiOS::CANIface* can_iface_periph[HAL_NUM_CAN_IFACES];
@@ -169,8 +173,16 @@ public:
     // Handled under LUA script to control LEDs
     void led_command_override() { led_cmd_override = true; }
 
+    void toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t recv_byte);
+
+    void i2c_setup();
+
+    void rm3100_recv_byte(uint8_t idx, uint8_t byte);
+    bool rm3100_send_byte(uint8_t &send_byte);
+
     float get_yaw_earth() { return yaw_earth; }
     uint32_t get_vehicle_state() { return vehicle_state; }
+    void handle_rm3100_response();
 
 #if AP_SCRIPTING_ENABLED
     AP_Scripting scripting;
@@ -200,6 +212,26 @@ public:
     uint32_t last_airspeed_update_ms;
     uint64_t last_time_sync_usec;
     int64_t time_offset_usec;
+
+    uint8_t i2c_led_color_red;
+    uint8_t i2c_led_color_green;
+    uint8_t i2c_led_color_blue;
+    uint8_t i2c_led_reg;
+    bool i2c_new_led_data;
+
+    uint8_t i2c2_transfer_byte_idx;
+    uint8_t i2c2_transfer_address;
+    uint8_t i2c2_transfer_direction;
+
+    uint8_t rm3100_reg;
+    uint8_t rm3100_reg_val;
+    uint8_t rm3100_mag_data[9];
+    bool mag_data_requested;
+    bool rm3100_response_requested;
+    bool rm3100_write_requested;
+
+    HAL_EventHandle i2c_event_handle;
+    ChibiOS::EventSource i2c_event_source;
 
     static AP_Periph_FW *_singleton;
 

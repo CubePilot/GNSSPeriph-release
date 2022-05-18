@@ -1340,24 +1340,40 @@ void AP_Periph_FW::can_update()
         last_1Hz_ms = now;
         process1HzTasks(AP_HAL::native_micros64());
     }
+    if (!g.serial_i2c_mode) {
+        can_gps_update();
+    } else {
+        // update LEDs as well
+        if (i2c_new_led_data) {
+            i2c_new_led_data = false;
+            // const int8_t brightness = periph.notify.get_rgb_led_brightness_percent();
+            // uint8_t red = i2c_led_color_red;
+            // uint8_t green = i2c_led_color_green;
+            // uint8_t blue = i2c_led_color_blue;
+            // if (brightness != 100 && brightness >= 0) {
+            //     const float scale = brightness * 0.01;
+            //     red = constrain_int16(red * scale, 0, 255);
+            //     green = constra1in_int16(green * scale, 0, 255);
+            //     blue = constrain_int16(blue * scale, 0, 255);
+            // }
+            set_rgb_led(i2c_led_color_red, i2c_led_color_green, i2c_led_color_blue);
+        }
+    }
+    
     can_mag_update();
-    can_gps_update();
-    can_battery_update();
     can_baro_update();
-    can_airspeed_update();
-    can_rangefinder_update();
+
 #ifdef HAL_GPIO_PIN_SAFE_LED
     can_safety_LED_update();
 #endif
 #ifdef HAL_GPIO_PIN_SAFE_BUTTON
     can_safety_button_update();
 #endif
-#ifdef HAL_PERIPH_ENABLE_PWM_HARDPOINT
-    pwm_hardpoint_update();
-#endif
+    rcout_update();
 
-    periph.rcout_update();
-    can_imu_update();
+    if (!g.serial_i2c_mode) {
+        can_imu_update();
+    }
 #if !HAL_INS_ENABLED // we wait in INS method otherwise
     const uint32_t now_us = AP_HAL::micros();
     while ((AP_HAL::micros() - now_us) < 1000) {

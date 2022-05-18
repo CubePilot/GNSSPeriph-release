@@ -82,6 +82,15 @@ const struct LogStructure AP_Periph_FW::log_structure[] = {
 };
 #endif
 
+void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp)
+{
+    if (pin == GPIO_USART1_RX) {
+        hal.gpio->write(GPIO_USART2_TX, pin_state);
+    } else if (pin == GPIO_USART2_RX) {
+        hal.gpio->write(GPIO_USART1_TX, pin_state);
+    }
+}
+
 void AP_Periph_FW::init()
 {
     
@@ -118,14 +127,6 @@ void AP_Periph_FW::init()
 
     stm32_watchdog_pat();
 
-#ifdef HAL_BOARD_AP_PERIPH_ZUBAXGNSS
-    // setup remapping register for ZubaxGNSS
-    uint32_t mapr = AFIO->MAPR;
-    mapr &= ~AFIO_MAPR_SWJ_CFG;
-    mapr |= AFIO_MAPR_SWJ_CFG_JTAGDISABLE;
-    AFIO->MAPR = mapr | AFIO_MAPR_CAN_REMAP_REMAP2 | AFIO_MAPR_SPI3_REMAP;
-#endif
-
 #if HAL_LOGGING_ENABLED
     logger.Init(log_structure, ARRAY_SIZE(log_structure));
 #endif
@@ -146,12 +147,24 @@ void AP_Periph_FW::init()
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_GPS
-    if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE) {
+    if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && !g.serial_i2c_mode) {
 #if HAL_LOGGING_ENABLED
         #define MASK_LOG_GPS (1<<2)
         gps.set_log_gps_bit(MASK_LOG_GPS);
 #endif
         gps.init(serial_manager);
+
+    } else {
+        // setup gpio passthrough
+        hal.gpio->set_mode(GPIO_USART1_RX, HAL_GPIO_INPUT);
+        hal.gpio->set_mode(GPIO_USART1_TX, HAL_GPIO_OUTPUT);
+        hal.gpio->set_mode(GPIO_USART2_RX, HAL_GPIO_INPUT);
+        hal.gpio->set_mode(GPIO_USART2_TX, HAL_GPIO_OUTPUT);
+        hal.gpio->attach_interrupt(GPIO_USART1_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
+        hal.gpio->attach_interrupt(GPIO_USART2_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
+        i2c_event_handle.set_source(&i2c_event_source);
+        i2c_event_handle.register_event(1);
+        i2c_setup();
     }
 #endif
 
@@ -163,38 +176,10 @@ void AP_Periph_FW::init()
     baro.init();
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_BATTERY
-    battery.lib.init();
-#endif
 
     hal.rcout->init();
 
     hal.rcout->force_safety_off();
-
-#ifdef HAL_PERIPH_ENABLE_ADSB
-    adsb_init();
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_AIRSPEED
-    if (airspeed.enabled()) {
-        airspeed.init();
-    }
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_RANGEFINDER
-    if (rangefinder.get_type(0) != RangeFinder::Type::NONE && g.rangefinder_port >= 0) {
-        auto *uart = hal.serial(g.rangefinder_port);
-        if (uart != nullptr) {
-            uart->begin(g.rangefinder_baud);
-            serial_manager.set_protocol_and_baud(g.rangefinder_port, AP_SerialManager::SerialProtocol_Rangefinder, g.rangefinder_baud);
-            rangefinder.init(ROTATION_NONE);
-        }
-    }
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_PWM_HARDPOINT
-    pwm_hardpoint_init();
-#endif
 
     notify.init();
 
