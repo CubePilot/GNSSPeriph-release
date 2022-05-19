@@ -177,12 +177,20 @@ public:
 
     void i2c_setup();
 
-    void rm3100_recv_byte(uint8_t idx, uint8_t byte);
-    bool rm3100_send_byte(uint8_t &send_byte);
+    uint8_t compass_reg;
+    struct reg_list {
+        struct reg_list *next;
+        uint8_t reg;
+        uint8_t val;
+        bool updated;
+    } *reg_list_head;
+
+    void compass_recv_byte(uint8_t idx, uint8_t byte);
+    uint8_t compass_send_byte(uint8_t reg);
+    void compass_register_rw_callback(uint8_t reg, uint8_t *data, uint32_t len, bool is_write);
 
     float get_yaw_earth() { return yaw_earth; }
     uint32_t get_vehicle_state() { return vehicle_state; }
-    void handle_rm3100_response();
 
 #if AP_SCRIPTING_ENABLED
     AP_Scripting scripting;
@@ -222,13 +230,6 @@ public:
     uint8_t i2c2_transfer_byte_idx;
     uint8_t i2c2_transfer_address;
     uint8_t i2c2_transfer_direction;
-
-    uint8_t rm3100_reg;
-    uint8_t rm3100_reg_val;
-    uint8_t rm3100_mag_data[9];
-    bool mag_data_requested;
-    bool rm3100_response_requested;
-    bool rm3100_write_requested;
 
     HAL_EventHandle i2c_event_handle;
     ChibiOS::EventSource i2c_event_source;

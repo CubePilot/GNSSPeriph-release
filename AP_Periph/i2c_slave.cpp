@@ -54,6 +54,8 @@ void AP_Periph_FW::i2c_setup()
     I2C2->CR1 |= (1<<3); // ADDRIE
     I2C2->CR1 |= (1<<5); // STOPIE
 	I2C2->CR1 |= I2C_CR1_PE; // Enable I2C
+
+    hal.spi->set_register_rw_callback("rm3100", FUNCTOR_BIND_MEMBER(&AP_Periph_FW::compass_register_rw_callback, void, uint8_t, uint8_t*, uint32_t, bool));
 }
 
 void AP_Periph_FW::toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t recv_byte)
@@ -77,22 +79,88 @@ void AP_Periph_FW::toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t
     }
 }
 
-void AP_Periph_FW::rm3100_recv_byte(uint8_t idx, uint8_t byte)
+void AP_Periph_FW::compass_register_rw_callback(uint8_t reg, uint8_t *buf, uint32_t size, bool is_write)
 {
-    if (idx == 0) {
-        // this is a register address
-        rm3100_reg = byte;
-    } else {
-        // write is requested
-        chSysLockFromISR();
-        periph.rm3100_write_requested = true;
-        periph.i2c_event_source.signalI(EVENT_MASK(0));
-        chSysUnlockFromISR();
-        rm3100_reg_val = byte;
+    // add register to singly linked list, if not already there
+    if (reg_list_head == nullptr) {
+        reg_list_head = new reg_list;
+        reg_list_head->reg = reg;
+        reg_list_head->val = buf[0];
+        reg_list_head->updated = true;
+        reg++;
+        size--;
+        buf++;
+        return;
+    }
+    // add to list if not already there, otherwise update value
+    reg_list *cur = reg_list_head;
+    reg_list *prev = nullptr;
+    while (size) {
+        // search for the register in the list
+        while (cur != nullptr && cur->reg != reg) {
+            prev = cur;
+            cur = cur->next;
+        }
+        // if found update it
+        if (cur != nullptr) {
+            cur->val = buf[0];
+            cur->updated = true;
+            reg++;
+            size--;
+            buf++;
+        }
+        // if not found add it
+        else {
+            prev->next = new reg_list;
+            cur = prev->next;
+            if (cur == nullptr) {
+                AP_HAL::panic("Failed to add register to list"); // this is really bad, best to halt here
+            }
+            cur->reg = reg;
+            cur->val = buf[0];
+            cur->updated = true;
+            reg++;
+            size--;
+            buf++;
+        }
     }
 }
 
-void i2c_serve_interrupt(uint32_t isr)
+uint8_t AP_Periph_FW::compass_send_byte(uint8_t reg) {
+    // search for the register in the list
+    reg_list *cur = reg_list_head;
+    while (cur != nullptr && cur->reg != reg) {
+        cur = cur->next;
+    }
+    // if found return it
+    if (cur != nullptr) {
+        if (reg == 0x34) { // this is a rm3100 status register request, only update if we have a new data at 0x24 already
+            while (cur != nullptr && cur->reg != 0x24) {
+                cur = cur->next;
+            }
+            if (cur != nullptr && cur->updated) {
+                cur->updated = false;
+                return 0x80;
+            } else {
+                return 0x00;
+            }
+        }
+        cur->updated = false;
+        return cur->val;
+    }
+    // if not found return 0
+    return 0;
+}
+
+void AP_Periph_FW::compass_recv_byte(uint8_t idx, uint8_t byte)
+{
+    // TODO: implement writing back to registers
+    if (idx == 0) {
+        compass_reg = byte;
+    }
+}
+
+static void i2c_serve_interrupt(uint32_t isr)
 {
     if (isr & (1<<3)) { // ADDR
         periph.i2c2_transfer_address = (isr >> 17) & 0x7FU; // ADDCODE
@@ -114,7 +182,7 @@ void i2c_serve_interrupt(uint32_t isr)
             case RM3100_I2C_ADDR2:
             case RM3100_I2C_ADDR3:
             case RM3100_I2C_ADDR4:
-                periph.rm3100_recv_byte(periph.i2c2_transfer_byte_idx, recv_byte);
+                periph.compass_recv_byte(periph.i2c2_transfer_byte_idx, recv_byte);
                 break;
         }
         periph.i2c2_transfer_byte_idx++;
@@ -126,19 +194,7 @@ void i2c_serve_interrupt(uint32_t isr)
             case RM3100_I2C_ADDR2:
             case RM3100_I2C_ADDR3:
             case RM3100_I2C_ADDR4:
-                if (periph.rm3100_reg == 0x34) {
-                    if (periph.compass.raw_data_available()) {
-                        I2C2->TXDR = 0x80;
-                    } else {
-                        I2C2->TXDR = 0x00;
-                    }
-                } else if (periph.rm3100_reg == 0x24) {
-                    uint8_t data[9] = {};
-                    periph.compass.get_raw_data(data, sizeof(data));
-                    I2C2->TXDR = data[periph.i2c2_transfer_byte_idx];
-                } else {
-                    I2C2->TXDR = periph.compass.get_reg_value(periph.rm3100_reg);
-                }
+                I2C2->TXDR = periph.compass_send_byte(periph.compass_reg + periph.i2c2_transfer_byte_idx);
                 break;
         }
         periph.i2c2_transfer_byte_idx++;
