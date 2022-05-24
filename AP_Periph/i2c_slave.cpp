@@ -81,15 +81,44 @@ void AP_Periph_FW::toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t
 
 void AP_Periph_FW::compass_register_rw_callback(uint8_t reg, uint8_t *buf, uint32_t size, bool is_write)
 {
+    uint8_t temp_buf[9], cnt = 0;
+    if (size <= 9) {
+        memcpy(temp_buf, buf, size);
+    } else {
+        // this is unexpected
+        return;
+    }
+    if ((reg == 0x24) && (size == 9)) {
+        // invert x and y axes
+        // take 2's complement
+        uint32_t val = (temp_buf[0] << 16) | (temp_buf[1] << 8) | (temp_buf[2]);
+        val = ~val;
+        val += 1;
+        temp_buf[0] = (val >> 16) & 0xff;
+        temp_buf[1] = (val >> 8) & 0xff;
+        temp_buf[2] = (val) & 0xff;
+        val = (temp_buf[3] << 16) | (temp_buf[4] << 8) | (temp_buf[5]);
+        val = ~val;
+        val += 1;
+        temp_buf[3] = (val >> 16) & 0xff;
+        temp_buf[4] = (val >> 8) & 0xff;
+        temp_buf[5] = (val) & 0xff;
+        val = (temp_buf[6] << 16) | (temp_buf[7] << 8) | (temp_buf[8]);
+        val = ~val;
+        val += 1;
+        temp_buf[6] = (val >> 16) & 0xff;
+        temp_buf[7] = (val >> 8) & 0xff;
+        temp_buf[8] = (val) & 0xff;
+    }
     // add register to singly linked list, if not already there
     if (reg_list_head == nullptr) {
         reg_list_head = new reg_list;
         reg_list_head->reg = reg;
-        reg_list_head->val = buf[0];
+        reg_list_head->val = temp_buf[cnt];
         reg_list_head->updated = true;
         reg++;
         size--;
-        buf++;
+        cnt++;
         return;
     }
     // add to list if not already there, otherwise update value
@@ -103,11 +132,11 @@ void AP_Periph_FW::compass_register_rw_callback(uint8_t reg, uint8_t *buf, uint3
         }
         // if found update it
         if (cur != nullptr) {
-            cur->val = buf[0];
+            cur->val = temp_buf[cnt];
             cur->updated = true;
             reg++;
             size--;
-            buf++;
+            cnt++;
         }
         // if not found add it
         else {
@@ -117,11 +146,11 @@ void AP_Periph_FW::compass_register_rw_callback(uint8_t reg, uint8_t *buf, uint3
                 AP_HAL::panic("Failed to add register to list"); // this is really bad, best to halt here
             }
             cur->reg = reg;
-            cur->val = buf[0];
+            cur->val = temp_buf[cnt];
             cur->updated = true;
             reg++;
             size--;
-            buf++;
+            cnt++;
         }
     }
 }
