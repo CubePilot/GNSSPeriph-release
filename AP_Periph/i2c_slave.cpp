@@ -158,6 +158,9 @@ void AP_Periph_FW::compass_register_rw_callback(uint8_t reg, uint8_t *buf, uint3
 uint8_t AP_Periph_FW::compass_send_byte(uint8_t reg) {
     // search for the register in the list
     reg_list *cur = reg_list_head;
+    if (reg == 0x36) {
+        return 0x22;
+    }
     while (cur != nullptr && cur->reg != reg) {
         cur = cur->next;
     }
@@ -219,6 +222,9 @@ static void i2c_serve_interrupt(uint32_t isr)
 
     if (isr & I2C_ISR_TXIS) {
         switch(periph.i2c2_transfer_address) {
+            case TOSHIBALED_I2C_ADDRESS:
+                I2C2->TXDR = 0x0; //TODO, return actual data
+                break;
             case RM3100_I2C_ADDR1:
             case RM3100_I2C_ADDR2:
             case RM3100_I2C_ADDR3:
