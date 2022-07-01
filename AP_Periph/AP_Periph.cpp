@@ -162,10 +162,11 @@ void AP_Periph_FW::init()
         hal.gpio->set_mode(GPIO_USART2_TX, HAL_GPIO_OUTPUT);
         hal.gpio->attach_interrupt(GPIO_USART1_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
         hal.gpio->attach_interrupt(GPIO_USART2_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
-        i2c_event_handle.set_source(&i2c_event_source);
-        i2c_event_handle.register_event(1);
-        i2c_setup();
     }
+
+    i2c_event_handle.set_source(&i2c_event_source);
+    i2c_event_handle.register_event(1);
+    i2c_setup();
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_MAG
@@ -347,6 +348,20 @@ void AP_Periph_FW::update()
 #endif
 
     can_update();
+
+    if (_setup_ser_i2c_mode && AP_Periph_FW::no_iface_finished_dna) {
+        hal.scheduler->expect_delay_ms(100);
+        g.serial_i2c_mode.set_and_save(1);
+        prepare_reboot();
+        hal.scheduler->reboot(false);
+    }
+
+    if (!AP_Periph_FW::no_iface_finished_dna && g.serial_i2c_mode) {
+        hal.scheduler->expect_delay_ms(100);
+        g.serial_i2c_mode.set_and_save(0);
+        prepare_reboot();
+        hal.scheduler->reboot(false);
+    }
 
     if (!g.serial_i2c_mode) {
         update_rainbow();

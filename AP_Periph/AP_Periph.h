@@ -230,10 +230,11 @@ public:
     uint8_t i2c2_transfer_byte_idx;
     uint8_t i2c2_transfer_address;
     uint8_t i2c2_transfer_direction;
+    bool _setup_ser_i2c_mode;
 
     HAL_EventHandle i2c_event_handle;
     ChibiOS::EventSource i2c_event_source;
-
+    
     static AP_Periph_FW *_singleton;
 
     // show stack as DEBUG msgs
