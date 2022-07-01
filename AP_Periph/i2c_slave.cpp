@@ -60,6 +60,10 @@ void AP_Periph_FW::i2c_setup()
 
 void AP_Periph_FW::toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t recv_byte)
 {
+    if (!g.serial_i2c_mode) {
+        // we need to set param and reboot
+        _setup_ser_i2c_mode  = true;
+    }
     if (recv_byte_idx == 0 || ((recv_byte&(1<<7)) != 0)) {
         i2c_led_reg = recv_byte & ~(1<<7);
     } else {
