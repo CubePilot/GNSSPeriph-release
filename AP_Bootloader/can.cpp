@@ -799,7 +799,9 @@ static struct profiLED_color_s color_func(uint8_t led_idx)
         mul *= -1;
         last_finish_breath_time = curr_time;
     }
-    color.b = blue;
+    color.b = blue/3;
+    color.g = blue/3;
+    color.r = blue/3;
     return color;
 }
 
