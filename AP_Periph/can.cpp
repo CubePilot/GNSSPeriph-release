@@ -1001,6 +1001,7 @@ static void processRx(void)
             rx_frame.canfd = rxmsg.canfd;
             memcpy(rx_frame.data, rxmsg.data, rx_frame.data_len);
             rx_frame.id = rxmsg.id;
+            rx_frame.iface_id = ins.index;
 #if DEBUG_PKTS
             const int16_t res = 
 #endif
