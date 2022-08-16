@@ -1,9 +1,10 @@
 #pragma once
+#include <GCS_MAVLink/GCS_MAVLink.h>
 
-#define THISFIRMWARE "AP_Periph V1.3dev"
+#define THISFIRMWARE "GNSSPeriph V1.0dev"
 
 // the following line is parsed by the autotest scripts
-#define FIRMWARE_VERSION 1,3,0,FIRMWARE_VERSION_TYPE_DEV
+#define FIRMWARE_VERSION 1,0,0,FIRMWARE_VERSION_TYPE_DEV
 
 #define FW_MAJOR 1
 #define FW_MINOR 3
