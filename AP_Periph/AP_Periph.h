@@ -14,6 +14,7 @@
 #include <AP_MSP/AP_MSP.h>
 #include <AP_MSP/msp.h>
 #include "../AP_Bootloader/app_comms.h"
+#include <AP_CheckFirmware/AP_CheckFirmware.h>
 #include <AP_CANManager/AP_CANManager.h>
 #include <AP_Scripting/AP_Scripting.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
@@ -42,7 +43,7 @@ void stm32_watchdog_pat();
 /*
   app descriptor compatible with MissionPlanner
  */
-extern const struct app_descriptor app_descriptor;
+extern const app_descriptor_t app_descriptor;
 
 class AP_Periph_FW {
 public:

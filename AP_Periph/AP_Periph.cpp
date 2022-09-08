@@ -56,15 +56,6 @@ void loop(void)
 
 static uint32_t start_ms;
 
-/*
-  declare constant app_descriptor in flash
- */
-#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
-const struct app_descriptor app_descriptor __attribute__((section(".app_descriptor")));
-#else
-const struct app_descriptor app_descriptor;
-#endif
-
 AP_Periph_FW::AP_Periph_FW()
 #if HAL_LOGGING_ENABLED
     : logger(g.log_bitmask)
