@@ -38,7 +38,7 @@
 #include <AP_HAL_ChibiOS/hwdef/common/watchdog.h>
 #include <stdio.h>
 #include <AP_HAL_ChibiOS/CANIface.h>
-
+#include <AP_CheckFirmware/AP_CheckFirmware.h>
 
 static CanardInstance canard;
 static uint32_t canard_memory_pool[4096/4];
@@ -637,7 +637,7 @@ bool can_check_firmware(void)
     const uint8_t sig[8] = { 0x40, 0xa2, 0xe4, 0xf1, 0x64, 0x68, 0x91, 0x06 };
     const uint8_t *flash = (const uint8_t *)(FLASH_LOAD_ADDRESS + (FLASH_BOOTLOADER_LOAD_KB + APP_START_OFFSET_KB)*1024);
     const uint32_t flash_size = (BOARD_FLASH_SIZE - (FLASH_BOOTLOADER_LOAD_KB + APP_START_OFFSET_KB))*1024;
-    const app_descriptor *ad = (const app_descriptor *)memmem(flash, flash_size-sizeof(app_descriptor), sig, sizeof(sig));
+    const app_descriptor_t *ad = (const app_descriptor_t *)memmem(flash, flash_size-sizeof(app_descriptor_t), sig, sizeof(sig));
     if (ad == nullptr) {
         // no application signature
         node_status.vendor_specific_status_code = FAIL_REASON_NO_APP_SIG;
@@ -657,7 +657,7 @@ bool can_check_firmware(void)
         return false;
     }
 
-    const uint8_t desc_len = offsetof(app_descriptor, version_major) - offsetof(app_descriptor, image_crc1);
+    const uint8_t desc_len = offsetof(app_descriptor_t, version_major) - offsetof(app_descriptor_t, image_crc1);
     uint32_t len1 = ((const uint8_t *)&ad->image_crc1) - flash;
     if ((len1 + desc_len) > ad->image_size) {
         node_status.vendor_specific_status_code = FAIL_REASON_BAD_LENGTH_DESCRIPTOR;

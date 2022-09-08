@@ -53,6 +53,8 @@
 #if EXT_FLASH_SIZE_MB
 #include <AP_FlashIface/AP_FlashIface_JEDEC.h>
 #endif
+#include <AP_CheckFirmware/AP_CheckFirmware.h>
+
 // #pragma GCC optimize("O0")
 
 
