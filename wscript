@@ -225,6 +225,20 @@ submodules at specific revisions.
                  default=False,
                  help="Enables firmware ID checking on boot")
 
+    g.add_option('--signed-fw',
+        action='store_true',
+        default=False,
+        help='Configure for signed firmware support.')
+
+    g.add_option('--private-key',
+                 action='store',
+                 default=None,
+            help='path to private key for signing firmware.')
+
+    g.add_option('--enable-custom-controller', action='store_true',
+                 default=False,
+                 help="Enables custom controller")
+
     g = opt.ap_groups['linux']
 
     linux_options = ('--prefix', '--destdir', '--bindir', '--libdir')
