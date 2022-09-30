@@ -29,7 +29,7 @@ public:
 private:
 
     uint32_t telem_delay() const override { return 0; }
-    void handleMessage(const mavlink_message_t &msg) override { handle_common_message(msg); }
+    void handleMessage(const mavlink_message_t &msg) override;
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override { return true; }
     void handle_change_alt_request(AP_Mission::Mission_Command &cmd) override {}
     MAV_RESULT handle_preflight_reboot(const mavlink_command_long_t &packet) override;
@@ -47,6 +47,14 @@ protected:
 
     void send_nav_controller_output() const override {};
     void send_pid_tuning() override {};
+
+    void handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg);
+    void handle_odid_heartbeat(const mavlink_message_t &msg);
+
+    uint32_t cubeid_fw_size;
+    uint32_t cubeid_fw_crc;
+    int cubeid_fw_fd = -1;
+    uint8_t cubeid_fw_readbuf[252];
 };
 
 /*

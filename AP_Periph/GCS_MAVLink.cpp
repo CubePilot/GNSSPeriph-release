@@ -16,6 +16,7 @@
 #include <AP_HAL/AP_HAL_Boards.h>
 #include "GCS_MAVLink.h"
 #include "AP_Periph.h"
+#include <AP_Filesystem/AP_Filesystem.h>
 
 #if HAL_GCS_ENABLED
 
@@ -75,5 +76,98 @@ MAV_RESULT GCS_MAVLINK_Periph::handle_preflight_reboot(const mavlink_command_lon
     HAL_SITL::actually_reboot();
 #endif
 }
+
+void GCS_MAVLINK_Periph::handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg)
+{
+    mavlink_cubepilot_firmware_update_resp_t packet;
+    mavlink_msg_cubepilot_firmware_update_resp_decode(&msg, &packet);
+    if (packet.offset > cubeid_fw_size) {
+        // update finished
+        can_printf("CubeID fw update finished");
+    }
+    
+    // read the requested chunk
+    if (cubeid_fw_fd < 0) {
+        // Nothing to do
+        return;
+    }
+
+    AP::FS().lseek(cubeid_fw_fd, packet.offset, SEEK_SET);
+    AP::FS().read(cubeid_fw_fd, cubeid_fw_readbuf, sizeof(cubeid_fw_readbuf));
+
+    // send the requested chunk
+    mavlink_encapsulated_data_t encap = {};
+    encap.seqnr = packet.offset / sizeof(cubeid_fw_readbuf);
+    memcpy(encap.data, cubeid_fw_readbuf, sizeof(cubeid_fw_readbuf));
+    mavlink_msg_encapsulated_data_send_struct(chan, &encap);
+
+    can_printf("CubeID fw update chunk %u/%lu sent", encap.seqnr, cubeid_fw_size / sizeof(cubeid_fw_readbuf));
+}
+
+// crc32
+static uint32_t crc32(uint32_t crc, const uint8_t *buf, uint32_t len)
+{
+    uint32_t gen_table[] = {
+        0x00000000, 0x1db71064, 0x3b6e20c8, 0x26d930ac,
+        0x76dc4190, 0x6b6b51f4, 0x4db26158, 0x5005713c,
+        0xedb88320, 0xf00f9344, 0xd6d6a3e8, 0xcb61b38c,
+        0x9b64c2b0, 0x86d3d2d4, 0xa00ae278, 0xbdbdf21c,
+    };
+    crc ^= 0xffffffff;
+    for (uint32_t i=0; i<len; i++) {
+        uint8_t c = buf[i];
+        crc = gen_table[(crc ^ c) & 0x0f] ^ (crc >> 4);
+        crc = gen_table[(crc ^ (c >> 4)) & 0x0f] ^ (crc >> 4);
+    }
+    return crc ^ 0xffffffff;
+}
+
+// handle heartbeat from ODID module
+void GCS_MAVLINK_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
+{
+    mavlink_heartbeat_t packet;
+    mavlink_msg_heartbeat_decode(&msg, &packet);
+    if (packet.type == MAV_TYPE_ODID) {
+        // open firmware from ROMFS
+        if (cubeid_fw_fd == -1) {
+            cubeid_fw_fd = AP::FS().open("@ROMFS/CubeID_fw.bin", O_RDONLY);
+            if (cubeid_fw_fd < 0) {
+                can_printf("Failed to open CubeID_fw.bin %d", cubeid_fw_fd);
+                return;
+            }
+            can_printf("Opened cubeid_fw.bin");
+            // calculate CRC32 of firmware
+            while (true) {
+                int n = AP::FS().read(cubeid_fw_fd, cubeid_fw_readbuf, sizeof(cubeid_fw_readbuf));
+                if (n <= 0) {
+                    break;
+                }
+                cubeid_fw_crc = crc32(cubeid_fw_crc, cubeid_fw_readbuf, n);
+            }
+            // seek to start of file
+            AP::FS().lseek(cubeid_fw_fd, 0, SEEK_SET);
+            cubeid_fw_size = AP::FS().lseek(cubeid_fw_fd, 0, SEEK_END);
+        }
+        // send firmware update start command
+        mavlink_msg_cubepilot_firmware_update_start_send(chan, msg.sysid, msg.compid, cubeid_fw_size, cubeid_fw_crc);
+    }
+}
+
+void GCS_MAVLINK_Periph::handleMessage(const mavlink_message_t &msg)
+{
+    switch (msg.msgid) {
+    case MAVLINK_MSG_ID_CUBEPILOT_FIRMWARE_UPDATE_RESP:
+        handle_cubepilot_firmware_update_resp(msg);
+        break;
+    case MAVLINK_MSG_ID_HEARTBEAT:
+        can_printf("Got heartbeat from %u %u", msg.sysid, msg.compid);
+        handle_odid_heartbeat(msg);
+        // fallthrough
+    default:
+        handle_common_message(msg);
+        break;
+    }     // end switch
+}
+
 
 #endif // #if HAL_GCS_ENABLED

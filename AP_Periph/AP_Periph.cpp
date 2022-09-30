@@ -107,6 +107,7 @@ void AP_Periph_FW::init()
 #if HAL_GCS_ENABLED
     stm32_watchdog_pat();
     gcs().init();
+    
 #endif
     serial_manager.init();
 
