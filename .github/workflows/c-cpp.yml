@@ -13,7 +13,7 @@ jobs:
       with:
         submodules: recursive
     - name: configure
-      run: ./waf configure
+      run: ./waf configure --board Here3+
     - name: build
       run: ./waf AP_Periph
     - name: configure bootloader
