@@ -6,9 +6,6 @@ jobs:
   build:
     runs-on: ubuntu-20.04
     container: ardupilot/ardupilot-dev-chibios:latest
-    strategy:
-      fail-fast: false  # don't cancel if a job from the matrix fails
-
     steps:
     # install github cli
     - name: Install github cli
@@ -58,7 +55,7 @@ jobs:
     - name: build
       run: ./waf AP_Periph
     - name: configure bootloader
-      run: ./waf configure --bootloader
+      run: ./waf configure --board Here3+ --bootloader
     - name: build
       run: ./waf bootloader
       continue-on-error: true
