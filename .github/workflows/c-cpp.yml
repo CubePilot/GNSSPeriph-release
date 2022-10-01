@@ -66,3 +66,11 @@ jobs:
         name: GNSSPeriph
         # A file, directory or wildcard pattern that describes what to upload
         path: build/*/bin
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          build/Here3+/bin/AP_Periph.bin
+          build/Here3+/bin/AP_Periph_with_bl.hex
+
