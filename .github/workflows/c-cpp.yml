@@ -39,6 +39,20 @@ jobs:
             mv fw_update.bin ROMFS_custom/CubeID_fw.bin
       env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+    - name: Prepare ccache timestamp
+      id: ccache_cache_timestamp
+      run: |
+        NOW=$(date -u +"%F-%T")
+        echo "::set-output name=timestamp::${NOW}"
+    - name: ccache cache files
+      uses: actions/cache@v2
+      with:
+        path: ~/.ccache
+        key: ${{github.workflow}}-ccache-${{steps.ccache_cache_timestamp.outputs.timestamp}}
+        restore-keys: ${{github.workflow}}-ccache-  # restore ccache from either previous build on this branch or on master
+    - name: setup ccache
+      run: |
+        . .github/workflows/ccache.env
     - name: configure
       run: ./waf configure --board Here3+
     - name: build
