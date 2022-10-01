@@ -35,8 +35,8 @@ jobs:
             -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
             "repos/cubepilot/cubeid/releases/assets/$ASSET_ID" > fw_update.bin
             ls -al fw_update.bin
-            mkdir -p build/ROMFS_custom/
-            mv fw_update.bin build/ROMFS_custom/CubeID_fw.bin
+            mkdir -p ROMFS_custom/
+            mv fw_update.bin ROMFS_custom/CubeID_fw.bin
       env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
     - name: configure
