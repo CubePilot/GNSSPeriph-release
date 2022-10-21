@@ -302,6 +302,15 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // select serial i2c mode and disable can gps
     GSCALAR(serial_i2c_mode,     "SER_I2C_MODE", 0),
 
+    //select terminator setting
+    GARRAY(can_terminator, 0,    "CAN_TERMINATOR", 0),
+
+#if HAL_NUM_CAN_IFACES >= 2
+    // can node FD Out baudrate
+    GARRAY(can_terminator, 1,    "CAN2_TERMINATOR", 0),
+#endif
+
+
     AP_VAREND
 };
 

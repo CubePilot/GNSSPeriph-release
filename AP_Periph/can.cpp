@@ -1220,7 +1220,7 @@ void AP_Periph_FW::can_start()
 
 #ifdef HAL_GPIO_PIN_TERMCAN1
     for (uint8_t i=0; i<ARRAY_SIZE(can_term_lines); i++){
-        palWriteLine(can_term_lines[i], 1);
+        palWriteLine(can_term_lines[i], g.can_terminator[i]);
     }
 #endif
 
