@@ -244,6 +244,7 @@ static void i2c_serve_interrupt(uint32_t isr)
     }
 }
 
+OSAL_IRQ_HANDLER(STM32_I2C2_EVENT_HANDLER);
 OSAL_IRQ_HANDLER(STM32_I2C2_EVENT_HANDLER) {
     uint32_t isr = I2C2->ISR;
 
