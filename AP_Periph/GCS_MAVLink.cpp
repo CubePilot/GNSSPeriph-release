@@ -160,7 +160,6 @@ void GCS_MAVLINK_Periph::handleMessage(const mavlink_message_t &msg)
         handle_cubepilot_firmware_update_resp(msg);
         break;
     case MAVLINK_MSG_ID_HEARTBEAT:
-        can_printf("Got heartbeat from %u %u", msg.sysid, msg.compid);
         handle_odid_heartbeat(msg);
         // fallthrough
     default:

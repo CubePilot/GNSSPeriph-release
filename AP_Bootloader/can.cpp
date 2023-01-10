@@ -22,15 +22,7 @@
 #include <AP_Math/crc.h>
 #include <canard.h>
 #include "support.h"
-#include <uavcan/protocol/dynamic_node_id/Allocation.h>
-#include <uavcan/protocol/file/BeginFirmwareUpdate.h>
-#include <uavcan/protocol/file/Read.h>
-#include <uavcan/protocol/dynamic_node_id/Allocation.h>
-#include <uavcan/protocol/NodeStatus.h>
-#include <uavcan/protocol/RestartNode.h>
-#include <uavcan/protocol/GetNodeInfo.h>
-#include <uavcan/equipment/indication/LightsCommand.h>
-#include <ardupilot/indication/NotifyState.h>
+#include <dronecan_msgs.h>
 #include "can.h"
 #include "bl_protocol.h"
 #include <drivers/stm32/canard_stm32.h>
@@ -79,7 +71,7 @@ static struct {
     uint32_t last_ms;
     uint8_t node_id;
     uint8_t transfer_id;
-    uint8_t path[UAVCAN_PROTOCOL_FILE_PATH_PATH_MAX_LENGTH+1];
+    uint8_t path[sizeof(uavcan_protocol_file_Path::path.data)+1];
     uint8_t sector;
     uint32_t sector_ofs;
 } fw_update;
@@ -99,7 +91,7 @@ enum {
  */
 static void readUniqueID(uint8_t* out_uid)
 {
-    uint8_t len = UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_UNIQUE_ID_MAX_LENGTH;
+    uint8_t len = sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data);
     memset(out_uid, 0, len);
     memcpy(out_uid, (const void *)UDID_START, MIN(len,12));
 }
@@ -150,7 +142,7 @@ static void handle_get_node_info(CanardInstance* ins,
     char name[strlen(CAN_APP_NODE_NAME)+1];
     strcpy(name, CAN_APP_NODE_NAME);
     pkt.name.len = strlen(CAN_APP_NODE_NAME);
-    pkt.name.data = (uint8_t *)name;
+    memcpy(pkt.name.data, name, pkt.name.len);
 
     uint16_t total_size = uavcan_protocol_GetNodeInfoResponse_encode(&pkt, buffer, true);
 
@@ -171,7 +163,7 @@ static void handle_get_node_info(CanardInstance* ins,
 static void send_fw_read(void)
 {
     uint32_t now = AP_HAL::millis();
-    if (now - fw_update.last_ms < 250) {
+    if (now - fw_update.last_ms < 750) {
         // the server may still be responding
         return;
     }
@@ -235,10 +227,12 @@ static void handle_file_read_response(CanardInstance* ins, CanardRxTransfer* tra
         fw_update.sector++;
         fw_update.sector_ofs -= sector_size;
     }
-    if (len < UAVCAN_PROTOCOL_FILE_READ_RESPONSE_DATA_MAX_LENGTH) {
+    if (len < sizeof(uavcan_protocol_file_ReadResponse::data.data)) {
         fw_update.node_id = 0;
         flash_write_flush();
-        if (can_check_firmware()) {
+        const auto ok = check_good_firmware();
+        node_status.vendor_specific_status_code = uint8_t(ok);
+        if (ok == check_fw_result_t::CHECK_FW_OK) {
             jump_to_app();
         }
     }
@@ -309,7 +303,7 @@ static void handle_allocation_response(CanardInstance* ins, CanardRxTransfer* tr
 
     // Copying the unique ID from the message
     static const uint8_t UniqueIDBitOffset = 8;
-    uint8_t received_unique_id[UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_UNIQUE_ID_MAX_LENGTH];
+    uint8_t received_unique_id[sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data)];
     uint8_t received_unique_id_len = 0;
     for (; received_unique_id_len < (transfer->payload_len - (UniqueIDBitOffset / 8U)); received_unique_id_len++) {
         const uint8_t bit_offset = (uint8_t)(UniqueIDBitOffset + received_unique_id_len * 8U);
@@ -317,7 +311,7 @@ static void handle_allocation_response(CanardInstance* ins, CanardRxTransfer* tr
     }
 
     // Obtaining the local unique ID
-    uint8_t my_unique_id[UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_UNIQUE_ID_MAX_LENGTH];
+    uint8_t my_unique_id[sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data)];
     readUniqueID(my_unique_id);
 
     // Matching the received UID against the local one
@@ -326,7 +320,7 @@ static void handle_allocation_response(CanardInstance* ins, CanardRxTransfer* tr
         return;         // No match, return
     }
 
-    if (received_unique_id_len < UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_UNIQUE_ID_MAX_LENGTH) {
+    if (received_unique_id_len < sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data)) {
         // The allocator has confirmed part of unique ID, switching to the next stage and updating the timeout.
         node_id_allocation_unique_id_offset = received_unique_id_len;
         send_next_node_id_allocation_request_at_ms -= UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_MIN_REQUEST_PERIOD_MS;
@@ -563,11 +557,11 @@ static void can_handle_DNA(void)
         allocation_request[0] |= 1;     // First part of unique ID
     }
 
-    uint8_t my_unique_id[UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_UNIQUE_ID_MAX_LENGTH];
+    uint8_t my_unique_id[sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data)];
     readUniqueID(my_unique_id);
 
     static const uint8_t MaxLenOfUniqueIDInRequest = 6;
-    uint8_t uid_size = (uint8_t)(UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_UNIQUE_ID_MAX_LENGTH - node_id_allocation_unique_id_offset);
+    uint8_t uid_size = (uint8_t)(sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data) - node_id_allocation_unique_id_offset);
     if (uid_size > MaxLenOfUniqueIDInRequest) {
         uid_size = MaxLenOfUniqueIDInRequest;
     }
@@ -687,7 +681,7 @@ bool can_check_update(void)
     if (comms->magic == APP_BOOTLOADER_COMMS_MAGIC) {
         can_set_node_id(comms->my_node_id);
         fw_update.node_id = comms->server_node_id;
-        memcpy(fw_update.path, comms->path, UAVCAN_PROTOCOL_FILE_PATH_PATH_MAX_LENGTH+1);
+        memcpy(fw_update.path, comms->path, sizeof(uavcan_protocol_file_Path::path.data)+1);
         ret = true;
         // clear comms region
         memset(comms, 0, sizeof(struct app_bootloader_comms));
@@ -766,7 +760,7 @@ void can_start()
         get_random_range(UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_MAX_FOLLOWUP_DELAY_MS);
 
     if (stm32_was_watchdog_reset()) {
-        node_status.vendor_specific_status_code = FAIL_REASON_WATCHDOG;
+        node_status.vendor_specific_status_code = uint8_t(check_fw_result_t::FAIL_REASON_WATCHDOG);
     }
 }
 
