@@ -84,7 +84,9 @@ void GCS_MAVLINK_Periph::handle_cubepilot_firmware_update_resp(const mavlink_mes
     mavlink_msg_cubepilot_firmware_update_resp_decode(&msg, &packet);
     if (packet.offset > cubeid_fw_size) {
         // update finished
-        can_printf("CubeID fw update finished");
+        can_printf("CubeID Firmware up-to-date.");
+        cubeid_fw_updated = true;
+        return;
     }
     
     // read the requested chunk
@@ -128,15 +130,15 @@ void GCS_MAVLINK_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
 {
     mavlink_heartbeat_t packet;
     mavlink_msg_heartbeat_decode(&msg, &packet);
-    if (packet.type == MAV_TYPE_ODID) {
+    if (packet.type == MAV_TYPE_ODID && !cubeid_fw_updated) {
         // open firmware from ROMFS
         if (cubeid_fw_fd == -1) {
-            cubeid_fw_fd = AP::FS().open("@ROMFS/CubeID_fw.bin", O_RDONLY);
+            cubeid_fw_fd = AP::FS().open("@ROMFS//CubeID_fw.bin", O_RDONLY);
             if (cubeid_fw_fd < 0) {
-                can_printf("Failed to open CubeID_fw.bin %d", cubeid_fw_fd);
+                can_printf("Failed to open CubeID_fw.bin %d %d", cubeid_fw_fd, errno);
                 return;
             }
-            can_printf("Opened cubeid_fw.bin");
+
             // calculate CRC32 of firmware
             while (true) {
                 int n = AP::FS().read(cubeid_fw_fd, cubeid_fw_readbuf, sizeof(cubeid_fw_readbuf));

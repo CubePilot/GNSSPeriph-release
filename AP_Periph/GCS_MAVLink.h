@@ -55,6 +55,7 @@ protected:
     uint32_t cubeid_fw_crc;
     int cubeid_fw_fd = -1;
     uint8_t cubeid_fw_readbuf[252];
+    bool cubeid_fw_updated = false;
 };
 
 /*
