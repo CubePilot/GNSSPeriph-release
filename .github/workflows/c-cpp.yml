@@ -6,6 +6,9 @@ jobs:
   build:
     runs-on: ubuntu-20.04
     container: ardupilot/ardupilot-dev-chibios:latest
+    env:
+      HERE3_CUBEID_TAG: v1.0
+      HERE4_CUBEID_TAG: Amplifierv1.0
     steps:
     - name: Install dependencies
       run: |
@@ -22,7 +25,6 @@ jobs:
         submodules: recursive
     - name: Download CubeID firmware for Here3+
       run: |
-            export HERE3_CUBEID_TAG=v1.0
             export HERE3_ASSET_ID=$(gh api \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
@@ -60,18 +62,55 @@ jobs:
     - name: build
       run: ./waf bootloader
       continue-on-error: true
-    - name: Upload a Build Artifact
+    - name: copy Here3+ files to release
+      run: |
+        mkdir -p release/
+        cp build/Here3+/bin/AP_Periph.bin release/Here3Plus_FW.bin
+        cp build/Here3+/bin/AP_Periph_with_bl.hex release/Here3Plus_FW_with_bl.hex
+
+    - name: Download CubeID firmware for Here4
+      run: |
+            export HERE4_ASSET_ID=$(gh api \
+            -H "Accept: application/vnd.github.v3.raw" \
+            -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
+            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE4_CUBEID_TAG) | .assets[] | select(.name=="fw_update.bin") | .id')
+            echo "HERE4_ASSET_ID=$HERE4_ASSET_ID"
+            gh api \
+            -H "Accept: application/octet-stream" \
+            -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
+            "repos/cubepilot/cubeid/releases/assets/$HERE4_ASSET_ID" > fw_update.bin
+            ls -al fw_update.bin
+            mkdir -p ROMFS_custom/
+            mv fw_update.bin ROMFS_custom/CubeID_fw.bin
+      env:
+          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+    - name: configure
+      run: ./waf configure --board Here4
+    - name: build
+      run: ./waf AP_Periph
+    - name: configure bootloader
+      run: ./waf configure --board Here4 --bootloader
+    - name: build
+      run: ./waf bootloader
+      continue-on-error: true
+    - name: copy Here4 files to release
+      run: |
+        cp build/Here4/bin/AP_Periph.bin release/Here4_FW.bin
+        cp build/Here4/bin/AP_Periph_with_bl.hex release/Here4_FW_with_bl.hex
+    - name: Upload Build Artifacts
       uses: actions/upload-artifact@v2.2.4
       with:
         # Artifact name
         name: GNSSPeriph
         # A file, directory or wildcard pattern that describes what to upload
-        path: build/*/bin
+        path: release/
     - name: Release
       uses: softprops/action-gh-release@v1
       if: startsWith(github.ref, 'refs/tags/')
       with:
         files: |
-          build/Here3+/bin/AP_Periph.bin
-          build/Here3+/bin/AP_Periph_with_bl.hex
+          release/Here3Plus_FW.bin
+          release/Here3Plus_FW_with_bl.hex
+          release/Here4_FW.bin
+          release/Here4_FW_with_bl.hex
 
