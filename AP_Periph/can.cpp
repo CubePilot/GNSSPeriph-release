@@ -685,6 +685,115 @@ static void can_safety_button_update(void)
 }
 #endif // HAL_GPIO_PIN_SAFE_BUTTON
 
+
+#define ODID_COPY(name) pkt.name = msg.name
+#define ODID_COPY_STR(name) do { strncpy_noterm((char*)pkt.name, (const char*)msg.name.data, sizeof(pkt.name)); } while(0)
+
+#ifndef DRONEID_MODULE_CHAN
+#define DRONEID_MODULE_CHAN MAVLINK_COMM_0
+#endif
+static void handle_remoteid_location(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    dronecan_remoteid_Location msg;
+    dronecan_remoteid_Location_decode(transfer, &msg);
+
+    mavlink_open_drone_id_location_t pkt {};
+    ODID_COPY_STR(id_or_mac);
+    ODID_COPY(status);
+    ODID_COPY(direction);
+    ODID_COPY(speed_horizontal);
+    ODID_COPY(speed_vertical);
+    ODID_COPY(latitude);
+    ODID_COPY(longitude);
+    ODID_COPY(altitude_barometric);
+    ODID_COPY(altitude_geodetic);
+    ODID_COPY(height_reference);
+    ODID_COPY(height);
+    ODID_COPY(horizontal_accuracy);
+    ODID_COPY(vertical_accuracy);
+    ODID_COPY(barometer_accuracy);
+    ODID_COPY(speed_accuracy);
+    ODID_COPY(timestamp);
+    ODID_COPY(timestamp_accuracy);
+    mavlink_msg_open_drone_id_location_send_struct(DRONEID_MODULE_CHAN, &pkt);
+}
+
+static void handle_remoteid_basicid(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    dronecan_remoteid_BasicID msg;
+    dronecan_remoteid_BasicID_decode(transfer, &msg);
+
+    mavlink_open_drone_id_basic_id_t pkt {};
+    ODID_COPY_STR(id_or_mac);
+    ODID_COPY(id_type);
+    ODID_COPY(ua_type);
+    ODID_COPY_STR(uas_id);
+    mavlink_msg_open_drone_id_basic_id_send_struct(DRONEID_MODULE_CHAN, &pkt);
+}
+
+static void handle_remoteid_system(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    dronecan_remoteid_System msg;
+    dronecan_remoteid_System_decode(transfer, &msg);
+
+    mavlink_open_drone_id_system_t pkt {};
+    ODID_COPY_STR(id_or_mac);
+    ODID_COPY(operator_location_type);
+    ODID_COPY(classification_type);
+    ODID_COPY(operator_latitude);
+    ODID_COPY(operator_longitude);
+    ODID_COPY(area_count);
+    ODID_COPY(area_radius);
+    ODID_COPY(area_ceiling);
+    ODID_COPY(area_floor);
+    ODID_COPY(category_eu);
+    ODID_COPY(class_eu);
+    ODID_COPY(operator_altitude_geo);
+    ODID_COPY(timestamp);
+    mavlink_msg_open_drone_id_system_send_struct((mavlink_channel_t)DRONEID_MODULE_CHAN, &pkt);
+}
+
+static void handle_remoteid_selfid(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    dronecan_remoteid_SelfID msg;
+    dronecan_remoteid_SelfID_decode(transfer, &msg);
+
+    mavlink_open_drone_id_self_id_t pkt {};
+    ODID_COPY_STR(id_or_mac);
+    ODID_COPY(description_type);
+    ODID_COPY_STR(description);
+    mavlink_msg_open_drone_id_self_id_send_struct(DRONEID_MODULE_CHAN, &pkt);
+}
+
+static void handle_remoteid_operatorid(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    dronecan_remoteid_OperatorID msg;
+    dronecan_remoteid_OperatorID_decode(transfer, &msg);
+
+    mavlink_open_drone_id_operator_id_t pkt {};
+    ODID_COPY_STR(id_or_mac);
+    ODID_COPY(operator_id_type);
+    ODID_COPY_STR(operator_id);
+    mavlink_msg_open_drone_id_operator_id_send_struct(DRONEID_MODULE_CHAN, &pkt);
+}
+
+void AP_Periph_FW::handle_open_drone_id_arm_status(mavlink_open_drone_id_arm_status_t &pkt)
+{
+    dronecan_remoteid_ArmStatus msg {};
+    strncpy_noterm((char*)msg.error.data, pkt.error, sizeof(msg.error.data));
+    msg.error.len = strnlen((const char*)msg.error.data, sizeof(msg.error.data));
+    msg.status = pkt.status;
+
+    uint8_t buffer[DRONECAN_REMOTEID_ARMSTATUS_MAX_SIZE];
+    uint32_t len = dronecan_remoteid_ArmStatus_encode(&msg, buffer, !periph.canfdout());
+
+    canard_broadcast(DRONECAN_REMOTEID_ARMSTATUS_SIGNATURE,
+                    DRONECAN_REMOTEID_ARMSTATUS_ID,
+                    CANARD_TRANSFER_PRIORITY_LOW,
+                    buffer,
+                    len);
+}
+
 /**
  * This callback is invoked by the library when a new message or request or response is received.
  */
@@ -762,6 +871,27 @@ static void onTransferReceived(CanardInstance* ins,
     case ARDUPILOT_INDICATION_NOTIFYSTATE_ID:
         handle_notify_state(ins, transfer);
         break;
+
+    case DRONECAN_REMOTEID_LOCATION_ID:
+        handle_remoteid_location(ins, transfer);
+        break;
+
+    case DRONECAN_REMOTEID_BASICID_ID:
+        handle_remoteid_basicid(ins, transfer);
+        break;
+
+    case DRONECAN_REMOTEID_SYSTEM_ID:
+        handle_remoteid_system(ins, transfer);
+        break;
+
+    case DRONECAN_REMOTEID_SELFID_ID:
+        handle_remoteid_selfid(ins, transfer);
+        break;
+    
+    case DRONECAN_REMOTEID_OPERATORID_ID:
+        handle_remoteid_operatorid(ins, transfer);
+        break;
+
     }
 }
 
@@ -836,6 +966,27 @@ static bool shouldAcceptTransfer(const CanardInstance* ins,
     case ARDUPILOT_INDICATION_NOTIFYSTATE_ID:
         *out_data_type_signature = ARDUPILOT_INDICATION_NOTIFYSTATE_SIGNATURE;
         return true;
+
+    case DRONECAN_REMOTEID_LOCATION_ID:
+        *out_data_type_signature = DRONECAN_REMOTEID_LOCATION_SIGNATURE;
+        return true;
+
+    case DRONECAN_REMOTEID_BASICID_ID:
+        *out_data_type_signature = DRONECAN_REMOTEID_BASICID_SIGNATURE;
+        return true;
+
+    case DRONECAN_REMOTEID_SYSTEM_ID:
+        *out_data_type_signature = DRONECAN_REMOTEID_SYSTEM_SIGNATURE;
+        return true;
+
+    case DRONECAN_REMOTEID_SELFID_ID:
+        *out_data_type_signature = DRONECAN_REMOTEID_SELFID_SIGNATURE;
+        return true;
+
+    case DRONECAN_REMOTEID_OPERATORID_ID:
+        *out_data_type_signature = DRONECAN_REMOTEID_OPERATORID_SIGNATURE;
+        return true;
+
     default:
         break;
     }
@@ -1791,7 +1942,7 @@ void AP_Periph_FW::can_baro_update(void)
 
     {
         uavcan_equipment_air_data_StaticTemperature pkt {};
-        pkt.static_temperature = temp + C_TO_KELVIN;
+        pkt.static_temperature = C_TO_KELVIN(temp);
         pkt.static_temperature_variance = 0; // should we make this a parameter?
 
         uint8_t buffer[UAVCAN_EQUIPMENT_AIR_DATA_STATICTEMPERATURE_MAX_SIZE] {};

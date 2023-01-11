@@ -17,6 +17,7 @@
 #include "GCS_MAVLink.h"
 #include "AP_Periph.h"
 #include <AP_Filesystem/AP_Filesystem.h>
+#include <dronecan_msgs.h>
 
 #if HAL_GCS_ENABLED
 
@@ -153,11 +154,22 @@ void GCS_MAVLINK_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
     }
 }
 
+// handle arm status from ODID module
+void GCS_MAVLINK_Periph::handle_open_drone_id_arm_status(const mavlink_message_t &msg)
+{
+    mavlink_open_drone_id_arm_status_t packet;
+    mavlink_msg_open_drone_id_arm_status_decode(&msg, &packet);
+    periph.handle_open_drone_id_arm_status(packet);
+}
+
 void GCS_MAVLINK_Periph::handleMessage(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
     case MAVLINK_MSG_ID_CUBEPILOT_FIRMWARE_UPDATE_RESP:
         handle_cubepilot_firmware_update_resp(msg);
+        break;
+    case MAVLINK_MSG_ID_OPEN_DRONE_ID_ARM_STATUS:
+        handle_open_drone_id_arm_status(msg);
         break;
     case MAVLINK_MSG_ID_HEARTBEAT:
         handle_odid_heartbeat(msg);

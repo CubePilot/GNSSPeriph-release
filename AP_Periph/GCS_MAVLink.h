@@ -33,7 +33,7 @@ private:
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override { return true; }
     void handle_change_alt_request(AP_Mission::Mission_Command &cmd) override {}
     MAV_RESULT handle_preflight_reboot(const mavlink_command_long_t &packet);
-
+    void handle_open_drone_id_arm_status(const mavlink_message_t &msg);
 protected:
 
     uint8_t sysid_my_gcs() const override;

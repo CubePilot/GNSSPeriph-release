@@ -85,6 +85,8 @@ public:
     void check_for_serial_reboot_cmd(const int8_t serial_index);
 #endif
 
+    void handle_open_drone_id_arm_status(mavlink_open_drone_id_arm_status_t &pkt);
+
     void gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp);
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
