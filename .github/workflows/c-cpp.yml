@@ -7,8 +7,8 @@ jobs:
     runs-on: ubuntu-20.04
     container: ardupilot/ardupilot-dev-chibios:latest
     env:
-      HERE3_CUBEID_TAG: v1.0
-      HERE4_CUBEID_TAG: Amplifierv1.0
+      HERE3_CUBEID_TAG: v1.1
+      HERE4_CUBEID_TAG: v1.1
     steps:
     - name: Install dependencies
       run: |
@@ -28,7 +28,7 @@ jobs:
             export HERE3_ASSET_ID=$(gh api \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE3_CUBEID_TAG) | .assets[] | select(.name=="fw_update.bin") | .id')
+            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE3_CUBEID_TAG) | .assets[] | select(.name=="serial_fw_update.bin") | .id')
             echo "HERE3_ASSET_ID=$HERE3_ASSET_ID"
             gh api \
             -H "Accept: application/octet-stream" \
@@ -73,7 +73,7 @@ jobs:
             export HERE4_ASSET_ID=$(gh api \
             -H "Accept: application/vnd.github.v3.raw" \
             -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE4_CUBEID_TAG) | .assets[] | select(.name=="fw_update.bin") | .id')
+            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE4_CUBEID_TAG) | .assets[] | select(.name=="fem_fw_update.bin") | .id')
             echo "HERE4_ASSET_ID=$HERE4_ASSET_ID"
             gh api \
             -H "Accept: application/octet-stream" \
