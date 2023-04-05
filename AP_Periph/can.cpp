@@ -694,7 +694,7 @@ static void can_safety_button_update(void)
 #endif
 static void handle_remoteid_location(CanardInstance* ins, CanardRxTransfer* transfer)
 {
-    dronecan_remoteid_Location msg;
+    dronecan_remoteid_Location msg {};
     dronecan_remoteid_Location_decode(transfer, &msg);
 
     mavlink_open_drone_id_location_t pkt {};
@@ -720,7 +720,7 @@ static void handle_remoteid_location(CanardInstance* ins, CanardRxTransfer* tran
 
 static void handle_remoteid_basicid(CanardInstance* ins, CanardRxTransfer* transfer)
 {
-    dronecan_remoteid_BasicID msg;
+    dronecan_remoteid_BasicID msg {};
     dronecan_remoteid_BasicID_decode(transfer, &msg);
 
     mavlink_open_drone_id_basic_id_t pkt {};
@@ -733,7 +733,7 @@ static void handle_remoteid_basicid(CanardInstance* ins, CanardRxTransfer* trans
 
 static void handle_remoteid_system(CanardInstance* ins, CanardRxTransfer* transfer)
 {
-    dronecan_remoteid_System msg;
+    dronecan_remoteid_System msg {};
     dronecan_remoteid_System_decode(transfer, &msg);
 
     mavlink_open_drone_id_system_t pkt {};
@@ -755,7 +755,7 @@ static void handle_remoteid_system(CanardInstance* ins, CanardRxTransfer* transf
 
 static void handle_remoteid_selfid(CanardInstance* ins, CanardRxTransfer* transfer)
 {
-    dronecan_remoteid_SelfID msg;
+    dronecan_remoteid_SelfID msg {};
     dronecan_remoteid_SelfID_decode(transfer, &msg);
 
     mavlink_open_drone_id_self_id_t pkt {};
@@ -767,7 +767,7 @@ static void handle_remoteid_selfid(CanardInstance* ins, CanardRxTransfer* transf
 
 static void handle_remoteid_operatorid(CanardInstance* ins, CanardRxTransfer* transfer)
 {
-    dronecan_remoteid_OperatorID msg;
+    dronecan_remoteid_OperatorID msg {};
     dronecan_remoteid_OperatorID_decode(transfer, &msg);
 
     mavlink_open_drone_id_operator_id_t pkt {};
