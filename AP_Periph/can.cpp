@@ -47,7 +47,9 @@
 #include <AP_CANManager/AP_CANSensor.h>
 #endif
 
+#ifndef IFACE_ALL
 #define IFACE_ALL ((1<<(HAL_NUM_CAN_IFACES+1))-1)
+#endif
 
 extern const AP_HAL::HAL &hal;
 extern AP_Periph_FW periph;
