@@ -47,7 +47,9 @@
 #include <AP_CANManager/AP_CANSensor.h>
 #endif
 
+#if HAL_NUM_CAN_IFACES > 1
 #define IFACE_ALL ((1<<(HAL_NUM_CAN_IFACES+1))-1)
+#endif
 
 extern const AP_HAL::HAL &hal;
 extern AP_Periph_FW periph;
@@ -222,7 +224,9 @@ static void handle_get_node_info(CanardInstance* ins,
                                                     CanardResponse,
                                                     &buffer[0],
                                                     total_size,
+#ifdef IFACE_ALL
                                                     IFACE_ALL,
+#endif
                                                     periph.canfdout());
     if (resp_res <= 0) {
         printf("Could not respond to GetNodeInfo: %d\n", resp_res);
@@ -326,7 +330,9 @@ static void handle_param_getset(CanardInstance* ins, CanardRxTransfer* transfer)
                            CanardResponse,
                            &buffer[0],
                            total_size,
+#ifdef IFACE_ALL
                            IFACE_ALL,
+#endif
                            periph.canfdout());
 
 }
@@ -381,7 +387,9 @@ static void handle_param_executeopcode(CanardInstance* ins, CanardRxTransfer* tr
                            CanardResponse,
                            &buffer[0],
                            total_size,
+#ifdef IFACE_ALL
                            IFACE_ALL,
+#endif
                            periph.canfdout());
 }
 
@@ -431,7 +439,9 @@ static void handle_begin_firmware_update(CanardInstance* ins, CanardRxTransfer* 
                            CanardResponse,
                            &buffer[0],
                            total_size,
+#ifdef IFACE_ALL
                            IFACE_ALL,
+#endif
                            periph.canfdout());
     uint8_t count = 50;
     while (count--) {
@@ -1061,7 +1071,9 @@ static void canard_broadcast(uint64_t data_type_signature,
                     priority,
                     payload,
                     payload_len,
+#ifdef IFACE_ALL
                     IFACE_ALL, // send over all ifaces
+#endif
                     periph.canfdout());
 #if DEBUG_PKTS
     if (res < 0) {
@@ -1088,9 +1100,11 @@ static void processTx(void)
             if (ins.iface == NULL) {
                 continue;
             }
+#ifdef IFACE_ALL
             if (!(txf->iface_mask & (1<<ins.index))) {
                 continue;
             }
+#endif
     #if HAL_NUM_CAN_IFACES >= 2
             if (periph.can_protocol_cached[ins.index] != AP_CANManager::Driver_Type_UAVCAN) {
                 continue;
@@ -1331,7 +1345,9 @@ static bool can_do_dna()
                                                 CANARD_TRANSFER_PRIORITY_LOW,
                                                 &allocation_request[0],
                                                 (uint16_t) (uid_size + 1),
+#ifdef IFACE_ALL
                                                 (1<<dronecan.dna_interface),
+#endif
                                                 false);
     if (bcast_res < 0) {
         printf("Could not broadcast ID allocation req; error %d\n", bcast_res);
