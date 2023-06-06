@@ -54,6 +54,8 @@ public:
         k_param_can_terminator1,
         k_param_can_node_stats,
         k_param_cubeid_fw_update_enabled,
+        k_param_gps_passthrough,
+        k_param_gps_ubx_log,
     };
 
     AP_Int16 format_version;
@@ -87,10 +89,6 @@ public:
 
     AP_Int32 serial_number;
 
-#if HAL_LOGGING_ENABLED
-    AP_Int32        log_bitmask;
-#endif
-
     AP_Int16 sysid_this_mav;
 
     AP_Int8 can_fdmode;
@@ -99,6 +97,12 @@ public:
     AP_Int8 can_terminator[HAL_NUM_CAN_IFACES];
     AP_Int8 node_stats;
     AP_Int8 cubeid_fw_update_enabled;
+
+#ifdef ENABLE_BASE_MODE
+    AP_Int8 gps_passthrough;
+    AP_Int8 gps_ubx_log;
+#endif
+
     Parameters() {}
 };
 

@@ -168,6 +168,23 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
 
     // CubeID firmware update
     GSCALAR(cubeid_fw_update_enabled,    "CUBEID_FW_UPDATE", 1),
+
+#ifdef ENABLE_BASE_MODE
+    // @Param: GPS_PASSTHROUGH
+    // @DisplayName: Setup GPS Passthrough to usb serial
+    // @Description: Allows GPS to be passed through to USB serial
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    GSCALAR(gps_passthrough,         "GPS_PASSTHROUGH",  0),
+
+    // @Param: GPS_UBX_LOG
+    // @DisplayName: GPS UBX log
+    // @Description: Allows GPS UBX log to be logged and passed through
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    GSCALAR(gps_ubx_log,         "GPS_UBX_LOG",  0),
+#endif
+
     AP_VAREND
 };
 

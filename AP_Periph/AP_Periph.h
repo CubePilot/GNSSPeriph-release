@@ -84,8 +84,8 @@ public:
 
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
     void check_for_serial_reboot_cmd(const int8_t serial_index);
+    void check_for_serial_reboot_cmd_byte(uint8_t data);
 #endif
-
     void gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp);
 
     static ChibiOS::CANIface* can_iface_periph[HAL_NUM_CAN_IFACES];
@@ -212,6 +212,17 @@ public:
     static void set_rgb_led(uint8_t red, uint8_t green, uint8_t blue);
 
     AP_Periph_DroneCAN *dronecan;
+
+    void show_progress(uint32_t pct);
+
+#ifdef ENABLE_BASE_MODE
+    void gps_base_update();
+#endif
+
+    AP_HAL::AnalogSource *vbus_voltage_source;
+    int ubx_log_fd = -1;
+    char _ubx_log_filename[48];
+    uint16_t reboot_str_index;
 };
 
 

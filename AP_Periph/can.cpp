@@ -662,16 +662,28 @@ void AP_Periph_FW::can_update()
         last_1Hz_ms = now;
         process1HzTasks(AP_HAL::native_micros64());
     }
-    if (!g.serial_i2c_mode) {
+
+    bool enable_gps = true;
+#ifdef I2C_SLAVE_ENABLED
+    enable_gps = !g.serial_i2c_mode;
+#endif
+#ifdef ENABLE_BASE_MODE
+    enable_gps = !g.gps_passthrough && !g.gps_ubx_log;
+#endif
+
+    if (enable_gps) {
         dronecan->can_gps_update();
         dronecan->send_serial_monitor_data();
-    } else {
+    }
+#ifdef I2C_SLAVE_ENABLED
+    else {
         // update LEDs as well
         if (i2c_new_led_data) {
             i2c_new_led_data = false;
             set_rgb_led(i2c_led_color_red, i2c_led_color_green, i2c_led_color_blue);
         }
     }
+#endif
     
     dronecan->can_mag_update();
     dronecan->can_baro_update();

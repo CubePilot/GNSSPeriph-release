@@ -22,6 +22,8 @@
  */
 #include <AP_HAL/AP_HAL.h>
 #include <AP_HAL/AP_HAL_Boards.h>
+#include <hal.h>
+#include <AP_HAL_ChibiOS/GPIO.h>
 #include "AP_Periph.h"
 #include <stdio.h>
 
@@ -83,6 +85,24 @@ void AP_Periph_FW::init()
     stm32_watchdog_init();
 #endif
 
+    vbus_voltage_source = hal.analogin->channel(HAL_USB_VBUS_SENS_CHAN);
+
+    // sleep for 2ms to fetch the VBUS voltage
+    hal.scheduler->delay(2);
+
+    if (vbus_voltage_source->voltage_latest() < 4.0f) {
+        // we are not connected over USB, disable USB
+        msdStop(&USBMSD1);
+        usbDisconnectBus(&USBD2);
+        hal.scheduler->delay(2);
+        // reconfig the USB D7 pin as CAN RX
+        palSetLineMode(HAL_GPIO_PIN_OTG_HS_ULPI_D7, PAL_MODE_ALTERNATE(9) | PAL_STM32_OSPEED_HIGHEST);
+        palSetLine(HAL_GPIO_PIN_SWITCH_CAN2_USB);
+        palClearLine(HAL_GPIO_PIN_SLEEP_CAN2);
+    } else {
+        ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();
+    }
+
     stm32_watchdog_pat();
 
     hal.serial(0)->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 32, 32);
@@ -118,9 +138,16 @@ void AP_Periph_FW::init()
     imu.init(1000);
 #endif
 
-    if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && !g.serial_i2c_mode) {
-        gps.init(serial_manager);
+    bool enable_gps = true;
+#ifdef I2C_SLAVE_ENABLED
+    enable_gps = !g.serial_i2c_mode;
+#endif
+#ifdef ENABLE_BASE_MODE
+    enable_gps = !g.gps_passthrough && !g.gps_ubx_log;
+#endif
 
+    if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && enable_gps) {
+        gps.init(serial_manager);
     } else {
 #ifdef GPIO_USART1_RX
         // setup gpio passthrough
@@ -154,6 +181,15 @@ void AP_Periph_FW::init()
 #endif
     notify.init();
 
+    if (hal.gpio->usb_connected()) {
+        // set LED Brightness to low
+        float value;
+        AP_Param::get("NTF_LED_BRIGHT", value);
+        if (value > 1.0) {
+            AP_Param::set_by_name("NTF_LED_BRIGHT", 1);
+        }
+        AP_Param::set_by_name("GPS_PASSTHROUGH", 1);
+    }
 
 #if AP_SCRIPTING_ENABLED
     scripting.init();
@@ -197,6 +233,20 @@ void AP_Periph_FW::rcout_update()
 
 void AP_Periph_FW::update()
 {
+    if (vbus_voltage_source->voltage_latest() > 4.0f) {
+        ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();
+    }
+
+#ifdef ENABLE_BASE_MODE
+    bool base_update = false;
+    base_update = g.gps_passthrough || g.gps_ubx_log;
+    if (base_update) {
+        gps_base_update();
+    }
+#endif
+
+    SRV_Channels::enable_aux_servos();
+
     static uint32_t last_led_ms;
     uint32_t now = AP_HAL::native_millis();
     if (now - last_led_ms > 1000) {
@@ -204,7 +254,6 @@ void AP_Periph_FW::update()
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
         check_for_serial_reboot_cmd(HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT);
 #endif
-        SRV_Channels::enable_aux_servos();
         mavlink.send_heartbeat();
     }
 
@@ -268,30 +317,34 @@ void AP_Periph_FW::check_for_serial_reboot_cmd(const int8_t serial_index)
 
         uint32_t available = MIN(uart->available(), 1000U);
         while (available-- > 0) {
-            const char reboot_string[] = "\r\r\rreboot -b\n\r\r\rreboot\n";
-            const char reboot_string_len = sizeof(reboot_string)-1; // -1 is to remove the null termination
-            static uint16_t index[hal.num_serial];
-
             const int16_t data = uart->read();
             if (data < 0 || data > 0xff) {
                 // read error
                 continue;
             }
-            if (index[i] >= reboot_string_len || (uint8_t)data != reboot_string[index[i]]) {
-                // don't have a perfect match, start over
-                index[i] = 0;
-                continue;
-            }
-            index[i]++;
-            if (index[i] == reboot_string_len) {
-                // received reboot msg. Trigger a reboot and stay in the bootloader
-                prepare_reboot();
-                hal.scheduler->reboot(true);
-            }
+            check_for_serial_reboot_cmd_byte(data);
         }
     }
 }
 #endif // HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
+
+void AP_Periph_FW::check_for_serial_reboot_cmd_byte(uint8_t data)
+{
+    const char reboot_string[] = "\r\r\rreboot -b\n\r\r\rreboot\n";
+    const char reboot_string_len = sizeof(reboot_string)-1; // -1 is to remove the null termination
+
+    if (reboot_str_index >= reboot_string_len || (uint8_t)data != reboot_string[reboot_str_index]) {
+        // don't have a perfect match, start over
+        reboot_str_index = 0;
+        return;
+    }
+    reboot_str_index++;
+    if (reboot_str_index == reboot_string_len) {
+        // received reboot msg. Trigger a reboot and stay in the bootloader
+        prepare_reboot();
+        hal.scheduler->reboot(true);
+    }
+}
 
 // prepare for a safe reboot where PWMs and params are gracefully disabled
 // This is copied from AP_Vehicle::reboot(bool hold_in_bootloader) minus the actual reboot
