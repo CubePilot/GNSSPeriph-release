@@ -1,0 +1,2 @@
+include ../Here4/hwdef.dat
+ENABLE_SCRIPTING 1
