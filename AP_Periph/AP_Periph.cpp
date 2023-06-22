@@ -303,6 +303,8 @@ void AP_Periph_FW::update()
         uint32_t freq_gain = 0, antenna_gain;
         // 20 frequencies to the left in 100MHz wide with 1191.47MHz as center
         static const float l5_test_frequencies[] = { 1141.47, 1146.47, 1151.47, 1156.47, 1161.47, 1166.47, 1171.47, 1176.47, 1181.47, 1186.47, 1191.47, 1196.47, 1201.47, 1206.47, 1211.47, 1216.47, 1221.47, 1226.47, 1231.47, 1236.47 };
+        // float l5_good_freq_low = 1161.47;
+        // float l5_good_freq_high = 1206.47;
         // 20 frequencies to the left in 100MHz wide with 1583.46MHz as center
         static const float l1_test_frequencies[] = { 1533.46, 1538.46, 1543.46, 1548.46, 1553.46, 1558.46, 1563.46, 1568.46, 1573.46, 1578.46, 1583.46, 1588.46, 1593.46, 1598.46, 1603.46, 1608.46, 1613.46, 1618.46, 1623.46, 1628.46 };
         // float l1_good_freq_low = 1548.46;
@@ -311,7 +313,7 @@ void AP_Periph_FW::update()
         float frequency_with_peak_gain = 0;
         uint32_t peak_freq_gain = 0;
         for (uint8_t i=0; i<ARRAY_SIZE(l5_test_frequencies);i++) {
-            if (AP::gps().get_frequency_dbm(l5_test_frequencies[i]*1000000LLU, freq_gain, antenna_gain)) {
+            if (AP::gps().get_frequency_db(l5_test_frequencies[i]*1000000LLU, freq_gain, antenna_gain)) {
                 if (antenna_gain < 20) {
                     if ((peak_freq_gain < freq_gain) || peak_freq_gain == 0) {
                         peak_freq_gain = freq_gain;
@@ -321,13 +323,15 @@ void AP_Periph_FW::update()
             }
         }
         if (frequency_with_peak_gain != 0) {
-            can_printf("L5 %fMHz %ludbm %ludbm\n", frequency_with_peak_gain, peak_freq_gain, antenna_gain);
+            gcs().send_text(MAV_SEVERITY_INFO, "L5 %fMHz %ludbm %ludb\n", frequency_with_peak_gain, peak_freq_gain, antenna_gain);
+        } else {
+            gcs().send_text(MAV_SEVERITY_INFO, "L5 not found\n");
         }
         frequency_with_peak_gain = 0;
         peak_freq_gain = 0;
         // check gps for l1
         for (uint8_t i=0; i<ARRAY_SIZE(l1_test_frequencies);i++) {
-            if (AP::gps().get_frequency_dbm(l1_test_frequencies[i]*1000000LLU, freq_gain, antenna_gain)) {
+            if (AP::gps().get_frequency_db(l1_test_frequencies[i]*1000000LLU, freq_gain, antenna_gain)) {
                 if (antenna_gain < 16) {
                     if ((peak_freq_gain < freq_gain) || peak_freq_gain == 0) {
                         peak_freq_gain = freq_gain;
@@ -337,7 +341,9 @@ void AP_Periph_FW::update()
             }
         }
         if (frequency_with_peak_gain != 0) {
-            can_printf("L1 %fMHz %ludbm %ludbm\n", frequency_with_peak_gain, peak_freq_gain, antenna_gain);
+            gcs().send_text(MAV_SEVERITY_INFO, "L1 %fMHz %ludb %ludb\n", frequency_with_peak_gain, peak_freq_gain, antenna_gain);
+        } else {
+            gcs().send_text(MAV_SEVERITY_INFO, "L1 not found\n");
         }
     }
 
