@@ -13,6 +13,8 @@ local num_leds = 4
  by putting them on different channels
 --]]
 local chan = 2 --SRV_Channels:find_channel(94)
+local last_change_ms = 0
+local led = 0
 
 if not chan then
     gcs:send_text(6, "LEDs: channel not set")
@@ -39,46 +41,41 @@ end
 --[[
 Table of colors on a rainbow, red first
 --]]
-local rainbow = {
-  { 255, 0, 0 },
-  { 255, 127, 0 },
-  { 255, 255, 0 },
-  { 0,   255, 0 },
-  { 0,   0,   255 },
-  { 75,  0,   130 },
-  { 143, 0,   255 },
+local light_list = {
+  { 0, 255, 0, 0 },
+  { 0, 0,   255, 0 },
+  { 0, 0,   0,   255 },
+  { 1, 255, 0, 0 },
+  { 1, 0,   255, 0 },
+  { 1, 0,   0,   255 },
+  { 2, 255, 0, 0 },
+  { 2, 0,   255, 0 },
+  { 2, 0,   0,   255 },
+  { 3, 255, 0, 0 },
+  { 3, 0,   255, 0 },
+  { 3, 0,   0,   255 },
 }
 
---[[
-Funtion to set a LED to a color on a classic rainbow spectrum, with v=0 giving red
---]]
-function set_Rainbow(chan, led, v)
-  local num_rows = #rainbow
-  local row = math.floor(constrain(v * (num_rows-1)+1, 1, num_rows-1))
-  local v0 = (row-1) / (num_rows-1)
-  local v1 = row / (num_rows-1)
-  local p = (v - v0) / (v1 - v0)
-  r = math.floor(rainbow[row][1] + p * (rainbow[row+1][1] - rainbow[row][1]))
-  g = math.floor(rainbow[row][2] + p * (rainbow[row+1][2] - rainbow[row][2]))
-  b = math.floor(rainbow[row][3] + p * (rainbow[row+1][3] - rainbow[row][3]))
-  serialLED:set_RGB(chan, led, r, g, b)
-end
+local list_index = 1
 
 --[[
 We will set the colour of the LEDs based on roll of the aircraft
 --]]
 function update_LEDs()
---   local roll = constrain(ahrs:get_roll(), math.rad(-60), math.rad(60))
-    local roll = math.rad(0)
-
-  for led = 0, num_leds-1 do
-    local v  = constrain(0.5 + 0.5 * math.sin(roll * (led - num_leds/2) / (num_leds/2)), 0, 1)
-    set_Rainbow(chan, led, v)
-  end
-  serialLED:send(chan)
-
-  return update_LEDs, 20 -- run at 50Hz
+    serialLED:set_RGB(chan, light_list[list_index][1], light_list[list_index][2], light_list[list_index][3], light_list[list_index][4])
+    for i=0, num_leds-1 do
+        if i ~= light_list[list_index][1] then
+          serialLED:set_RGB(chan, i, 0, 0, 0)
+        end
+    end
+    list_index = list_index + 1
+    if list_index > #light_list then
+        list_index = 1
+    end
+    serialLED:send(chan)
+    serialLED:send(chan)
+    return update_LEDs, 2000
 end
 
-return update_LEDs, 1000
+return update_LEDs, 2000
 
