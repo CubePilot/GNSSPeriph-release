@@ -25,9 +25,7 @@
 
 #include <ch.h>
 
-#if HAL_GCS_ENABLED
-#include "GCS_MAVLink.h"
-#endif
+#include "MAVLink.h"
 
 #if defined(HAL_PERIPH_ENABLE_BATTERY_MPPT_PACKETDIGITAL) && HAL_MAX_CAN_PROTOCOL_DRIVERS < 2
 #error "Battery MPPT PacketDigital driver requires at least two CAN Ports"
@@ -204,9 +202,15 @@ public:
     AP_Logger logger;
 #endif
 
-#if HAL_GCS_ENABLED
-    GCS_Periph _gcs;
-#endif
+    MAVLink_Periph mavlink{MAVLINK_COMM_0};
+
+    MAVLink_Periph* get_link(mavlink_channel_t chan) {
+        if (chan == MAVLINK_COMM_0) {
+            return &mavlink;
+        } else {
+            return nullptr;
+        }
+    }
 
 #if HAL_INS_ENABLED
     AP_InertialSensor imu;

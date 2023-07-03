@@ -14,59 +14,84 @@
  */
 
 #include <AP_HAL/AP_HAL_Boards.h>
-#include "GCS_MAVLink.h"
+#include "MAVLink.h"
 #include "AP_Periph.h"
 #include <AP_Filesystem/AP_Filesystem.h>
 #include <dronecan_msgs.h>
 
-#if HAL_GCS_ENABLED
-
-static const ap_message STREAM_RAW_SENSORS_msgs[] = {
-    MSG_RAW_IMU
-};
-static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
-    MSG_SYS_STATUS,
-    MSG_POWER_STATUS,
-    MSG_MCU_STATUS,
-    MSG_MEMINFO,
-    MSG_GPS_RAW,
-    MSG_GPS_RTK,
-};
-
-static const ap_message STREAM_POSITION_msgs[] = {
-#if defined(HAL_PERIPH_ENABLE_AHRS)
-    MSG_LOCATION,
-    MSG_LOCAL_POSITION
+#ifdef MAVLINK_SEPARATE_HELPERS
+// Shut up warnings about missing declarations; TODO: should be fixed on
+// mavlink/pymavlink project for when MAVLINK_SEPARATE_HELPERS is defined
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-declarations"
+#include "include/mavlink/v2.0/mavlink_helpers.h"
+#pragma GCC diagnostic pop
 #endif
-};
 
-static const ap_message STREAM_PARAMS_msgs[] = {
-    MSG_NEXT_PARAM
-};
+mavlink_system_t mavlink_system = {3,1};
 
-const struct GCS_MAVLINK::stream_entries GCS_MAVLINK::all_stream_entries[] = {
-    MAV_STREAM_ENTRY(STREAM_RAW_SENSORS),
-    MAV_STREAM_ENTRY(STREAM_POSITION),
-    MAV_STREAM_ENTRY(STREAM_EXTENDED_STATUS),
-    MAV_STREAM_ENTRY(STREAM_PARAMS),
-    MAV_STREAM_TERMINATOR // must have this at end of stream_entries
-};
+extern const AP_HAL::HAL &hal;
 
-const struct AP_Param::GroupInfo GCS_MAVLINK_Parameters::var_info[] = {
-    AP_GROUPEND
-};
+void MAVLink_Periph::init(uint8_t port, uint32_t baudrate)
+{
+    serial = hal.serial(port);
+    // begin port
+    serial->begin(baudrate);
+    mavlink_system.sysid = periph.g.sysid_this_mav;
+}
 
-uint8_t GCS_MAVLINK_Periph::sysid_my_gcs() const
+void MAVLink_Periph::send_heartbeat()
+{
+    mavlink_heartbeat_t hb = {};
+    hb.type = MAV_TYPE_GPS;
+    hb.autopilot = MAV_AUTOPILOT_ARDUPILOTMEGA;
+    hb.base_mode = 0;
+    hb.system_status = MAV_STATE_ACTIVE;
+    mavlink_msg_heartbeat_send_struct(chan, &hb);
+}
+
+void MAVLink_Periph::update()
+{
+    if (serial == nullptr) {
+        return;
+    }
+    // read messages
+    const uint16_t nbytes = serial->available();
+    for (uint16_t i=0; i<nbytes; i++) {
+        const uint8_t c = (uint8_t)serial->read();
+        if (mavlink_parse_char(chan, c, &chan_buffer, &chan_status)) {
+            handleMessage(chan_buffer);
+        }
+    }
+}
+
+uint32_t MAVLink_Periph::txspace() const
+{
+    if (serial == nullptr) {
+        return 0;
+    }
+    return serial->txspace();
+}
+
+uint32_t MAVLink_Periph::write(const uint8_t *buf, uint32_t len)
+{
+    if (serial == nullptr) {
+        return 0;
+    }
+    return serial->write(buf, len);
+}
+
+uint8_t MAVLink_Periph::sysid_my_gcs() const
 {
     return periph.g.sysid_this_mav;
 }
 
-uint8_t GCS_Periph::sysid_this_mav() const
+uint8_t MAVLink_Periph::sysid_this_mav() const
 {
     return periph.g.sysid_this_mav;
 }
 
-MAV_RESULT GCS_MAVLINK_Periph::handle_preflight_reboot(const mavlink_command_long_t &packet)
+MAV_RESULT MAVLink_Periph::handle_preflight_reboot(const mavlink_command_long_t &packet)
 {
     can_printf("RestartNode\n");
     hal.scheduler->delay(10);
@@ -78,13 +103,13 @@ MAV_RESULT GCS_MAVLINK_Periph::handle_preflight_reboot(const mavlink_command_lon
 #endif
 }
 
-void GCS_MAVLINK_Periph::handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg)
+void MAVLink_Periph::handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg)
 {
     mavlink_cubepilot_firmware_update_resp_t packet;
     mavlink_msg_cubepilot_firmware_update_resp_decode(&msg, &packet);
     if (packet.offset > cubeid_fw_size) {
         // update finished
-        can_printf("CubeID Firmware up-to-date.");
+        can_printf("CubeID Firmware update finished.");
         cubeid_fw_updated = true;
         return;
     }
@@ -126,7 +151,7 @@ static uint32_t crc32(uint32_t crc, const uint8_t *buf, uint32_t len)
 }
 
 // handle heartbeat from ODID module
-void GCS_MAVLINK_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
+void MAVLink_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
 {
     mavlink_heartbeat_t packet;
     mavlink_msg_heartbeat_decode(&msg, &packet);
@@ -150,6 +175,7 @@ void GCS_MAVLINK_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
             // seek to start of file
             AP::FS().lseek(cubeid_fw_fd, 0, SEEK_SET);
             cubeid_fw_size = AP::FS().lseek(cubeid_fw_fd, 0, SEEK_END);
+            can_printf("CubeID firmware size %lu crc 0x%08lx", cubeid_fw_size, cubeid_fw_crc);
         }
         // send firmware update start command
         mavlink_msg_cubepilot_firmware_update_start_send(chan, msg.sysid, msg.compid, cubeid_fw_size, cubeid_fw_crc);
@@ -157,14 +183,14 @@ void GCS_MAVLINK_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
 }
 
 // handle arm status from ODID module
-void GCS_MAVLINK_Periph::handle_open_drone_id_arm_status(const mavlink_message_t &msg)
+void MAVLink_Periph::handle_open_drone_id_arm_status(const mavlink_message_t &msg)
 {
     mavlink_open_drone_id_arm_status_t packet;
     mavlink_msg_open_drone_id_arm_status_decode(&msg, &packet);
     periph.handle_open_drone_id_arm_status(packet);
 }
 
-void GCS_MAVLINK_Periph::handleMessage(const mavlink_message_t &msg)
+void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)
 {
     switch (msg.msgid) {
     case MAVLINK_MSG_ID_CUBEPILOT_FIRMWARE_UPDATE_RESP:
@@ -177,10 +203,78 @@ void GCS_MAVLINK_Periph::handleMessage(const mavlink_message_t &msg)
         handle_odid_heartbeat(msg);
         // fallthrough
     default:
-        handle_common_message(msg);
         break;
     }     // end switch
 }
 
+bool gcs_alternative_active[MAVLINK_COMM_NUM_BUFFERS];
 
-#endif // #if HAL_GCS_ENABLED
+// per-channel lock
+static HAL_Semaphore chan_locks[MAVLINK_COMM_NUM_BUFFERS];
+static bool chan_discard[MAVLINK_COMM_NUM_BUFFERS];
+
+/// Check for available transmit space on the nominated MAVLink channel
+///
+/// @param chan		Channel to check
+/// @returns		Number of bytes available
+uint16_t comm_get_txspace(mavlink_channel_t chan)
+{
+    MAVLink_Periph *link = periph.get_link(chan);
+    if (link == nullptr) {
+        return 0;
+    }
+    return link->txspace();
+}
+
+/*
+  send a buffer out a MAVLink channel
+ */
+void comm_send_buffer(mavlink_channel_t chan, const uint8_t *buf, uint8_t len)
+{
+    MAVLink_Periph *link = periph.get_link(chan);
+
+    if (!valid_channel(chan) || link == nullptr || chan_discard[chan]) {
+        return;
+    }
+    if (gcs_alternative_active[chan]) {
+        // an alternative protocol is active
+        return;
+    }
+    const size_t written = link->write(buf, len);
+    (void)written;
+}
+
+/*
+  lock a channel for send
+  if there is insufficient space to send size bytes then all bytes
+  written to the channel by the mavlink library will be discarded
+  while the lock is held.
+ */
+void comm_send_lock(mavlink_channel_t chan_m, uint16_t size)
+{
+    MAVLink_Periph *link = periph.get_link(chan_m);
+    uint8_t chan = uint8_t(chan_m);
+    chan_locks[chan].take_blocking();
+    if (link->txspace() < size) {
+        chan_discard[chan] = true;
+    }
+}
+
+/*
+  unlock a channel
+ */
+void comm_send_unlock(mavlink_channel_t chan_m)
+{
+    const uint8_t chan = uint8_t(chan_m);
+    chan_discard[chan] = false;
+    chan_locks[chan].give();
+}
+
+/*
+  return reference to GCS channel lock, allowing for
+  HAVE_PAYLOAD_SPACE() to be run with a locked channel
+ */
+HAL_Semaphore &comm_chan_lock(mavlink_channel_t chan)
+{
+    return chan_locks[uint8_t(chan)];
+}

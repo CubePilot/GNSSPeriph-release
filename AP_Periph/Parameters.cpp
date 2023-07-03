@@ -269,14 +269,12 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(log_bitmask,    "LOG_BITMASK",          4),
 #endif
 
-#if HAL_GCS_ENABLED
     // @Param: SYSID_THISMAV
     // @DisplayName: MAVLink system ID of this vehicle
     // @Description: Allows setting an individual system id for this vehicle to distinguish it from others on the same network
     // @Range: 1 255
     // @User: Advanced
     GSCALAR(sysid_this_mav,         "SYSID_THISMAV",  MAV_SYSTEM_ID),
-#endif
 
     // @Group: SERIAL
     // @Path: ../libraries/AP_SerialManager/AP_SerialManager.cpp

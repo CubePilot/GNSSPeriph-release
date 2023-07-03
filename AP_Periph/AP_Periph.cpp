@@ -93,9 +93,7 @@ void AP_Periph_FW::init()
 
     stm32_watchdog_pat();
 
-#if !HAL_GCS_ENABLED
     hal.serial(0)->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 32, 32);
-#endif
     hal.serial(3)->begin(115200, 128, 256);
 
     load_parameters();
@@ -104,18 +102,11 @@ void AP_Periph_FW::init()
 
     can_start();
 
-#if HAL_GCS_ENABLED
     stm32_watchdog_pat();
-    gcs().init();
-    
-#endif
-    serial_manager.init();
+    // initialise CUBEID
+    mavlink.init(DRONEID_MODULE_PORT, 115200);
 
-#if HAL_GCS_ENABLED
-    gcs().setup_console();
-    gcs().setup_uarts();
-    gcs().send_text(MAV_SEVERITY_INFO, "AP_Periph GCS Initialised!");
-#endif
+    serial_manager.init();
 
     stm32_watchdog_pat();
 
@@ -294,10 +285,7 @@ void AP_Periph_FW::update()
 
     SRV_Channels::enable_aux_servos();
 
-#if HAL_GCS_ENABLED
-        gcs().send_message(MSG_HEARTBEAT);
-        gcs().send_message(MSG_SYS_STATUS);
-#endif    
+        mavlink.send_heartbeat();
     }
 
     static uint32_t last_error_ms;
@@ -329,10 +317,7 @@ void AP_Periph_FW::update()
         // update at 50Hz
         fiftyhz_last_update_ms = now;
         notify.update();
-#if HAL_GCS_ENABLED
-        gcs().update_receive();
-        gcs().update_send();
-#endif
+        mavlink.update();
     }
 
 #if HAL_LOGGING_ENABLED

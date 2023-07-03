@@ -1,7 +1,7 @@
 #pragma once
 
 #include <AP_Common/AP_Common.h>
-#include "GCS_MAVLink.h"
+#include "MAVLink.h"
 
 // Global parameter class.
 //
@@ -98,9 +98,7 @@ public:
     AP_Int32        log_bitmask;
 #endif
 
-#if HAL_GCS_ENABLED
     AP_Int16 sysid_this_mav;
-#endif
 
     AP_Int8 can_fdmode;
     AP_Int32 can_fdbaudrate[HAL_NUM_CAN_IFACES];
