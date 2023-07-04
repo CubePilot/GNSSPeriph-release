@@ -10,6 +10,7 @@ import subprocess
 import json
 import fnmatch
 sys.path.insert(0, 'ardupilot/Tools/ardupilotwaf/')
+sys.path.insert(0, '.')
 
 import ardupilotwaf
 import boards
@@ -448,7 +449,7 @@ def configure(cfg):
         cfg.env.SUBMODULE_UPDATE = False
 
     cfg.msg('Update submodules', 'yes' if cfg.env.SUBMODULE_UPDATE else 'no')
-    cfg.load('git_submodule')
+    cfg.load('wscript_git')
 
     if cfg.options.enable_benchmarks:
         cfg.load('gbenchmark')
