@@ -23,6 +23,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         submodules: recursive
+    - run: git config --system --add safe.directory /__w/GNSSPeriph-release/GNSSPeriph-release
     - name: Download CubeID firmware for Here3+
       run: |
             export HERE3_ASSET_ID=$(gh api \
