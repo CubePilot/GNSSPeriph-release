@@ -11,7 +11,7 @@ def build(bld):
         flashiface_lib = []
     
     # build external libcanard library
-    bld.stlib(source='../../ardupilot/modules/DroneCAN/libcanard/canard.c',
+    bld.stlib(source='../ardupilot/modules/DroneCAN/libcanard/canard.c',
               use='dronecan',
               target='libcanard')
 
