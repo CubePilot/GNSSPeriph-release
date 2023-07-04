@@ -20,7 +20,7 @@ jobs:
         sudo apt update
         sudo apt install gh jq -y
         pip install intelhex
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: recursive
     - name: Download CubeID firmware for Here3+
