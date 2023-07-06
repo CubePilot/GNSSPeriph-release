@@ -123,11 +123,10 @@ def options(opt):
         default=False,
         help='Configure as debug variant.')
 
-    g.add_option('-g',
+    g.add_option('--debug-symbols', '-g',
         action='store_true',
         default=False,
         help='Add debug symbolds to build.')
-
 
     g.add_option('--disable-watchdog',
         action='store_true',
@@ -223,6 +222,10 @@ submodules at specific revisions.
                  default=False,
                  help="Disable onboard scripting engine")
 
+    g.add_option('--enable-scripting', action='store_true',
+                 default=False,
+                 help="Enable onboard scripting engine")
+
     g.add_option('--no-gcs', action='store_true',
                  default=False,
                  help="Disable GCS code")
@@ -254,7 +257,12 @@ submodules at specific revisions.
     g.add_option('--enable-gps-logging', action='store_true',
                  default=False,
                  help="Enables GPS logging")
-    
+
+    g.add_option('--enable-dds', action='store_true',
+                 help="Enable the dds client to connect with ROS2/DDS"
+    )
+
+
     g = opt.ap_groups['linux']
 
     linux_options = ('--prefix', '--destdir', '--bindir', '--libdir')
@@ -403,6 +411,7 @@ def configure(cfg):
 	# we need to enable debug mode when building for gconv, and force it to sitl        
     cfg.env.BOARD = cfg.options.board
     cfg.env.DEBUG = cfg.options.debug
+    cfg.env.DEBUG_SYMBOLS = cfg.options.debug_symbols
     cfg.env.COVERAGE = cfg.options.coverage
     cfg.env.AUTOCONFIG = cfg.options.autoconfig
 
@@ -415,6 +424,7 @@ def configure(cfg):
 
     cfg.env.BOARD = cfg.options.board
     cfg.env.DEBUG = cfg.options.debug
+    cfg.env.DEBUG_SYMBOLS = cfg.options.debug_symbols
     cfg.env.COVERAGE = cfg.options.coverage
     cfg.env.SITL32BIT = cfg.options.sitl_32bit
     cfg.env.ENABLE_ASSERTS = cfg.options.enable_asserts
@@ -437,6 +447,9 @@ def configure(cfg):
     if cfg.options.static:
         cfg.msg('Using static linking', 'yes', color='YELLOW')
         cfg.env.STATIC_LINKING = True
+
+    cfg.load('python')
+    cfg.check_python_version(minver=(3,6,9))
 
     cfg.load('ap_library')
 
@@ -483,9 +496,10 @@ def configure(cfg):
     cfg.start_msg('Scripting')
     if cfg.options.disable_scripting:
         cfg.end_msg('disabled', color='YELLOW')
-    else:
+    elif cfg.options.enable_scripting:
         cfg.end_msg('enabled')
-        cfg.recurse(cfg.srcnode.find_node('libraries/AP_Scripting').abspath())
+    else:
+        cfg.end_msg('maybe')
 
     cfg.recurse(cfg.srcnode.find_node('libraries/AP_GPS').abspath())
 
@@ -628,6 +642,8 @@ def _build_dynamic_sources(bld):
             ]
         )
 
+    if bld.env.ENABLE_DDS:
+        bld.recurse("libraries/AP_DDS")
 
     def write_version_header(tsk):
         bld = tsk.generator.bld
