@@ -226,6 +226,22 @@ uint16_t comm_get_txspace(mavlink_channel_t chan)
     return link->txspace();
 }
 
+mavlink_message_t* mavlink_get_channel_buffer(uint8_t chan) {
+    MAVLink_Periph *link = periph.get_link((mavlink_channel_t)chan);
+    if (link == nullptr) {
+        return nullptr;
+    }
+    return link->channel_buffer();
+}
+
+mavlink_status_t* mavlink_get_channel_status(uint8_t chan) {
+    MAVLink_Periph *link = periph.get_link((mavlink_channel_t)chan);
+    if (link == nullptr) {
+        return nullptr;
+    }
+    return link->channel_status();
+}
+
 /*
   send a buffer out a MAVLink channel
  */

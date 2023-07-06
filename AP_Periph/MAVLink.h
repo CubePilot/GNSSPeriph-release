@@ -30,6 +30,8 @@ public:
     void update();
     uint32_t txspace() const;
     uint32_t write(const uint8_t *tbuf, uint32_t len);
+    mavlink_message_t* channel_buffer() { return &chan_buffer; }
+    mavlink_status_t* channel_status() { return &chan_status; }
 
 private:
     void handleMessage(const mavlink_message_t &msg);
