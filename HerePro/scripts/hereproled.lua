@@ -5,6 +5,7 @@ local num_leds = 16
 local total_time = 1
 local animation_end = 0
 local current_anim = 0
+local brightness = 0
 
 -- constrain a value between limits
 function constrain(v, vmin, vmax)
@@ -65,6 +66,13 @@ function table.contains(table, element)
 end
 
 --[[
+Function to send a color to a LED
+--]]
+function set_LED(r, g, b, id)
+  notify:handle_rgb_id(math.floor(r*brightness/100), math.floor(g*brightness/100), math.floor(b*brightness/100), id)
+end
+
+--[[
 Function to set a LED to a color on a classic rainbow spectrum, with v=0 giving red
 --]]
 function get_Rainbow(v, num_rows)
@@ -107,7 +115,7 @@ function do_initialisation()
       bfact = softness^(2*trail/(led_trail_length-1))
     end
     local led_id = 1 + ((pos + trail) % num_leds)
-    notify:handle_rgb_id(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
+    set_LED(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
     table.insert(updated_leds, led_id)
   end
 
@@ -119,13 +127,13 @@ function do_initialisation()
       bfact = softness^(2*trail/(led_trail_length-1))
     end
     local led_id = 1 + ((pos + trail) % num_leds)
-    notify:handle_rgb_id(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
+    set_LED(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
     table.insert(updated_leds, led_id)
   end
 
   for led = 1, num_leds do
     if not table.contains(updated_leds, led) then
-      notify:handle_rgb_id(0, 0, 0, led_map[led])
+      set_LED(0, 0, 0, led_map[led])
     end
   end
 end
@@ -139,13 +147,13 @@ function do_point_north(r, g, b, led_trail_length, softness)
   for trail = 0, led_trail_length-1 do
     local bfact = softness^(2*(math.abs((led_trail_length-1)/2 - trail + ofs))/(led_trail_length-1))
     local led_id = 1 + ((yaw + trail) % 16)
-    notify:handle_rgb_id(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
+    set_LED(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
     table.insert(updated_leds, led_id)
   end
 
   for led = 1, num_leds do
     if not table.contains(updated_leds, led) then
-      notify:handle_rgb_id(0, 0, 0, led_map[led])
+      set_LED(0, 0, 0, led_map[led])
     end
   end
   return yaw
@@ -167,13 +175,13 @@ function finish_initialisation(r, g, b, led_trail_length, softness, speed_factor
   for trail = 0, led_trail_length-1 do
     local bfact = softness^(2*(math.abs((led_trail_length-1)/2 - trail))/(led_trail_length-1))
     local this_led_id = 1 + ((led_id + trail) % 16)
-    notify:handle_rgb_id(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[this_led_id])
+    set_LED(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[this_led_id])
     table.insert(updated_leds, this_led_id)
   end
 
   for led = 1, num_leds do
     if not table.contains(updated_leds, led) then
-      notify:handle_rgb_id(0, 0, 0, led_map[led])
+      set_LED(0, 0, 0, led_map[led])
     end
   end
 end
@@ -203,13 +211,13 @@ function do_arm_spin(r, g, b, softness, speed_factor, arming)
   for trail = 0, led_trail_length-1 do
     local bfact = softness^(led_trail_length - trail)
     local led_id = 1 + (count + trail) % 16
-    notify:handle_rgb_id(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
+    set_LED(math.floor(r/bfact), math.floor(g/bfact), math.floor(b/bfact), led_map[led_id])
     table.insert(updated_leds, led_id)
   end
 
   for led = 1, num_leds do
     if not table.contains(updated_leds, led) then
-      notify:handle_rgb_id(0, 0, 0, led_map[led])
+      set_LED(0, 0, 0, led_map[led])
     end
   end
   return next_call
@@ -217,7 +225,7 @@ end
 
 function set_all(r, g, b)
   for led = 1, num_leds do
-    notify:handle_rgb_id(r, g, b, led_map[led])
+    set_LED(r, g, b, led_map[led])
   end
 end
 
@@ -260,7 +268,9 @@ function update() -- this is the loop which periodically runs
   local next_call = 20
   local vehicle_state = periph:get_vehicle_state()
   animation_state_machine(vehicle_state)
-
+  -- get parameter NTF_LED_BRIGHT
+  brightness = param:get('NTF_LED_BRIGHT')
+  
   -- Initialisation
   if current_anim == 0 then
     do_initialisation()
