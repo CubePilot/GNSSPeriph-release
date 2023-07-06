@@ -73,6 +73,7 @@ const struct LogStructure AP_Periph_FW::log_structure[] = {
 };
 #endif
 
+#ifdef GPIO_USART1_RX
 void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp)
 {
     if (pin == GPIO_USART1_RX) {
@@ -81,7 +82,7 @@ void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t ti
         hal.gpio->write(GPIO_USART1_TX, pin_state);
     }
 }
-
+#endif
 void AP_Periph_FW::init()
 {
     
@@ -103,9 +104,10 @@ void AP_Periph_FW::init()
     can_start();
 
     stm32_watchdog_pat();
+#ifdef DRONEID_MODULE_PORT
     // initialise CUBEID
     mavlink.init(DRONEID_MODULE_PORT, 115200);
-
+#endif
     serial_manager.init();
 
     stm32_watchdog_pat();
@@ -138,6 +140,7 @@ void AP_Periph_FW::init()
         gps.init(serial_manager);
 
     } else {
+#ifdef GPIO_USART1_RX
         // setup gpio passthrough
         hal.gpio->set_mode(GPIO_USART1_RX, HAL_GPIO_INPUT);
         hal.gpio->set_mode(GPIO_USART1_TX, HAL_GPIO_OUTPUT);
@@ -145,6 +148,7 @@ void AP_Periph_FW::init()
         hal.gpio->set_mode(GPIO_USART2_TX, HAL_GPIO_OUTPUT);
         hal.gpio->attach_interrupt(GPIO_USART1_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
         hal.gpio->attach_interrupt(GPIO_USART2_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
+#endif
     }
 
     i2c_event_handle.set_source(&i2c_event_source);
