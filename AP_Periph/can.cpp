@@ -393,7 +393,7 @@ static void handle_param_executeopcode(CanardInstance* ins, CanardRxTransfer* tr
                            periph.canfdout());
 }
 
-static void canard_broadcast(uint64_t data_type_signature,
+static bool canard_broadcast(uint64_t data_type_signature,
                                 uint16_t data_type_id,
                                 uint8_t priority,
                                 const void* payload,
@@ -695,6 +695,140 @@ static void can_safety_button_update(void)
 }
 #endif // HAL_GPIO_PIN_SAFE_BUTTON
 
+/*
+  handle tunnel data
+ */
+static void handle_tunnel_Targetted(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    uavcan_tunnel_Targetted pkt;
+    if (uavcan_tunnel_Targetted_decode(transfer, &pkt)) {
+        return;
+    }
+    if (pkt.target_node != canardGetLocalNodeID(ins)) {
+        return;
+    }
+    if (periph.monitor.buffer == nullptr) {
+        periph.monitor.buffer = new ByteBuffer(1024);
+        if (periph.monitor.buffer == nullptr) {
+            return;
+        }
+    }
+    int8_t uart_num = pkt.serial_id;
+    if (uart_num == -1 &&
+        pkt.protocol.protocol == UAVCAN_TUNNEL_PROTOCOL_GPS_GENERIC) {
+        uart_num = periph.serial_manager.find_portnum(AP_SerialManager::SerialProtocol_GPS, 0);
+    }
+
+    if (uart_num < 0) {
+        return;
+    }
+    auto *uart = hal.serial(uart_num);
+    if (uart == nullptr) {
+        return;
+    }
+    if (periph.monitor.uart_num != uart_num && periph.monitor.uart != nullptr) {
+        // remove monitor from previous uart
+        hal.serial(periph.monitor.uart_num)->set_monitor_read_buffer(nullptr);
+    }
+    periph.monitor.uart_num = uart_num;
+    if (uart != periph.monitor.uart) {
+        // change of uart or expired, clear old data
+        periph.monitor.buffer->clear();
+        periph.monitor.uart = uart;
+    }
+    if (periph.monitor.uart == nullptr) {
+        return;
+    }
+    periph.monitor.uart->set_monitor_read_buffer(periph.monitor.buffer);
+    periph.monitor.last_request_ms = AP_HAL::millis();
+    periph.monitor.node_id = transfer->source_node_id;
+    periph.monitor.protocol = pkt.protocol.protocol;
+    periph.monitor.locked = (pkt.options & UAVCAN_TUNNEL_TARGETTED_OPTION_LOCK_PORT) != 0;
+    if (periph.monitor.locked && periph.monitor.key == 0) {
+        // lock the port
+        can_printf("locking port\n");
+        periph.monitor.key = 0x4DEF32A1;
+        periph.monitor.uart->lock_port(periph.monitor.key, periph.monitor.key);
+    } else if (!periph.monitor.locked && periph.monitor.key) {
+        // unlock the port
+        can_printf("unlocking port\n");
+        periph.monitor.uart->lock_port(0, 0);
+        periph.monitor.key = 0;
+    }
+    if (pkt.baudrate != periph.monitor.baudrate) {
+        if (periph.monitor.key) {
+            periph.monitor.uart->begin_locked(pkt.baudrate, periph.monitor.key);
+        } else {
+            periph.monitor.uart->begin(pkt.baudrate);
+        }
+        periph.monitor.baudrate = pkt.baudrate;
+    }
+    // write to device
+    if (pkt.buffer.len > 0) {
+        if (periph.monitor.key) {
+            periph.monitor.uart->write_locked(pkt.buffer.data, pkt.buffer.len, periph.monitor.key);
+        } else {
+            periph.monitor.uart->write(pkt.buffer.data, pkt.buffer.len);
+        }
+        while (periph.monitor.uart->tx_pending() > 0) {
+            hal.scheduler->delay_microseconds(100);
+        }
+    }
+}
+
+/*
+  send tunnelled serial data
+ */
+void AP_Periph_FW::send_serial_monitor_data()
+{
+    if (monitor.uart == nullptr ||
+        monitor.node_id == 0 ||
+        monitor.buffer == nullptr) {
+        return;
+    }
+    const uint32_t last_req_ms = monitor.last_request_ms;
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - last_req_ms >= 2000) {
+        // stop sending, but don't release the buffer
+        monitor.uart = nullptr;
+        return;
+    }
+    /*
+        when the port is locked nobody is reading the uart so the
+        monitor doesn't fill. We read here to ensure it fills
+        */
+    if (periph.monitor.key) {
+        uint8_t byte;
+        while (monitor.uart->read_locked(monitor.key, byte)) {}
+    }
+    uint8_t sends = 8;
+    while (monitor.buffer->available() > 0 && sends-- > 0) {
+        uint32_t n;
+        const uint8_t *buf = monitor.buffer->readptr(n);
+        if (n == 0) {
+            return;
+        }
+        // broadcast data as tunnel packets, can be used for uCenter debug and device fw update
+        uavcan_tunnel_Targetted pkt {};
+        n = MIN(n, sizeof(pkt.buffer.data));
+        pkt.target_node = monitor.node_id;
+        pkt.protocol.protocol = monitor.protocol;
+        pkt.buffer.len = n;
+        pkt.baudrate = monitor.baudrate;
+        memcpy(pkt.buffer.data, buf, n);
+
+        uint8_t buffer[UAVCAN_TUNNEL_TARGETTED_MAX_SIZE] {};
+        const uint16_t total_size = uavcan_tunnel_Targetted_encode(&pkt, buffer, !periph.canfdout());
+        if (!canard_broadcast(UAVCAN_TUNNEL_TARGETTED_SIGNATURE,
+                              UAVCAN_TUNNEL_TARGETTED_ID,
+                              CANARD_TRANSFER_PRIORITY_MEDIUM,
+                              &buffer[0],
+                              total_size)) {
+            break;
+        }
+        monitor.buffer->advance(n);
+    }
+}
 
 #define ODID_COPY(name) pkt.name = msg.name
 #define ODID_COPY_STR(name) do { strncpy_noterm((char*)pkt.name, (const char*)msg.name.data, sizeof(pkt.name)); } while(0)
@@ -869,7 +1003,11 @@ static void onTransferReceived(CanardInstance* ins,
         break;
 #endif
 #endif
-        
+
+    case UAVCAN_TUNNEL_TARGETTED_ID:
+        handle_tunnel_Targetted(ins, transfer);
+        break;
+  
     case UAVCAN_EQUIPMENT_INDICATION_LIGHTSCOMMAND_ID:
         handle_lightscommand(ins, transfer);
         break;
@@ -973,6 +1111,9 @@ static bool shouldAcceptTransfer(const CanardInstance* ins,
         return true;
 #endif
 #endif
+    case UAVCAN_TUNNEL_TARGETTED_ID:
+        *out_data_type_signature = UAVCAN_TUNNEL_TARGETTED_SIGNATURE;
+        return true;
     case ARDUPILOT_INDICATION_NOTIFYSTATE_ID:
         *out_data_type_signature = ARDUPILOT_INDICATION_NOTIFYSTATE_SIGNATURE;
         return true;
@@ -1047,39 +1188,37 @@ static uint8_t* get_tid_ptr(uint32_t transfer_desc)
     return &tid_map_ptr->next->tid;
 }
 
-static void canard_broadcast(uint64_t data_type_signature,
+static bool canard_broadcast(uint64_t data_type_signature,
                                 uint16_t data_type_id,
                                 uint8_t priority,
                                 const void* payload,
                                 uint16_t payload_len)
 {
     if (canardGetLocalNodeID(&dronecan.canard) == CANARD_BROADCAST_NODE_ID) {
-        return;
+        return false;
     }
 
     uint8_t *tid_ptr = get_tid_ptr(MAKE_TRANSFER_DESCRIPTOR(data_type_signature, data_type_id, 0, CANARD_BROADCAST_NODE_ID));
     if (tid_ptr == nullptr) {
-        return;
+        return false;
     }
-#if DEBUG_PKTS
-    const int16_t res = 
-#endif
-    canardBroadcast(&dronecan.canard,
-                    data_type_signature,
-                    data_type_id,
-                    tid_ptr,
-                    priority,
-                    payload,
-                    payload_len,
+    const int16_t res = canardBroadcast(&dronecan.canard,
+                                        data_type_signature,
+                                        data_type_id,
+                                        tid_ptr,
+                                        priority,
+                                        payload,
+                                        payload_len,
 #ifdef IFACE_ALL
-                    IFACE_ALL, // send over all ifaces
+                                        IFACE_ALL, // send over all ifaces
 #endif
-                    periph.canfdout());
+                                        periph.canfdout());
 #if DEBUG_PKTS
     if (res < 0) {
         can_printf("Tx error %d\n", res);
     }
 #endif
+    return res > 0;
 }
 
 static void processTx(void)
@@ -1508,6 +1647,7 @@ void AP_Periph_FW::can_update()
     }
     if (!g.serial_i2c_mode) {
         can_gps_update();
+        send_serial_monitor_data();
     } else {
         // update LEDs as well
         if (i2c_new_led_data) {
@@ -1530,13 +1670,10 @@ void AP_Periph_FW::can_update()
     if (!g.serial_i2c_mode) {
         can_imu_update();
     }
-#if !HAL_INS_ENABLED // we wait in INS method otherwise
+
     const uint32_t now_us = AP_HAL::micros();
     while ((AP_HAL::micros() - now_us) < 1000) {
         hal.scheduler->delay_microseconds(HAL_PERIPH_LOOP_DELAY_US);
-#else
-    {
-#endif
         processTx();
         processRx();
     }

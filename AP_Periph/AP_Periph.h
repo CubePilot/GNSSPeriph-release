@@ -22,7 +22,7 @@
 #include <AP_RTC/JitterCorrection.h>
 #include <AP_HAL/CANIface.h>
 #include <AP_HAL_ChibiOS/EventSource.h>
-
+#include <AP_SerialManager/AP_SerialManager.h>
 #include <ch.h>
 
 #include "MAVLink.h"
@@ -250,6 +250,19 @@ public:
     static bool no_iface_finished_dna;
     bool saw_lock_once;
     JitterCorrection jitter;
+
+    void send_serial_monitor_data();
+    struct {
+        ByteBuffer *buffer;
+        uint32_t last_request_ms;
+        AP_HAL::UARTDriver *uart;
+        int8_t uart_num;
+        uint8_t node_id;
+        uint8_t protocol;
+        uint32_t baudrate;
+        bool locked;
+        uint32_t key;
+    } monitor;
 };
 
 namespace AP
