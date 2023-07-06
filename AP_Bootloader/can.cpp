@@ -764,7 +764,7 @@ void can_start()
     }
 }
 
-
+#ifdef HAL_GPIO_PIN_LED_SCK
 struct profiLED_color_s {
     uint8_t b;
     uint8_t r;
@@ -842,6 +842,7 @@ static void profiLED_output_gpio(uint32_t num_leds) {
         }
     }
 }
+#endif
 
 void can_update()
 {
@@ -857,7 +858,9 @@ void can_update()
             last_1Hz_ms = now;
             process1HzTasks(AP_HAL::micros64());
         }
+#ifdef HAL_GPIO_PIN_LED_SCK
         profiLED_output_gpio(4);
+#endif
         if (fw_update.node_id != 0) {
             send_fw_read();
         }
