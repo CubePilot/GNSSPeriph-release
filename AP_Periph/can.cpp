@@ -798,9 +798,14 @@ void AP_Periph_FW::send_serial_monitor_data()
         monitor doesn't fill. We read here to ensure it fills
         */
     if (periph.monitor.key) {
-        uint8_t byte;
-        while (monitor.uart->read_locked(monitor.key, byte)) {}
+        uint8_t buf[120];
+        for (uint8_t i=0; i<8; i++) {
+            if (monitor.uart->read_locked(monitor.key, buf, sizeof(buf)) <= 0) {
+                break;
+            }
+        }
     }
+
     uint8_t sends = 8;
     while (monitor.buffer->available() > 0 && sends-- > 0) {
         uint32_t n;
