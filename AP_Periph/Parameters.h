@@ -52,6 +52,7 @@ public:
         k_param_serial_i2c_mode,
         k_param_can_terminator0,
         k_param_can_terminator1,
+        k_param_can_node_stats,
     };
 
     AP_Int16 format_version;
@@ -104,6 +105,7 @@ public:
     AP_Int32 can_fdbaudrate[HAL_NUM_CAN_IFACES];
     AP_Int8 serial_i2c_mode;
     AP_Int8 can_terminator[HAL_NUM_CAN_IFACES];
+    AP_Int8 node_stats;
 
     Parameters() {}
 };

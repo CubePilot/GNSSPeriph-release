@@ -158,6 +158,7 @@ HALSITL::CANIface* AP_Periph_FW::can_iface_periph[HAL_NUM_CAN_IFACES];
  * Node status variables
  */
 static uavcan_protocol_NodeStatus node_status;
+static dronecan_protocol_Stats protocol_stats;
 
 /**
  * Returns a pseudo random integer in a given range
@@ -1223,6 +1224,11 @@ static bool canard_broadcast(uint64_t data_type_signature,
         can_printf("Tx error %d\n", res);
     }
 #endif
+    if (res <= 0) {
+        protocol_stats.tx_errors++;
+    } else {
+        protocol_stats.tx_frames += res;
+    }
     return res > 0;
 }
 
@@ -1264,13 +1270,71 @@ static void processTx(void)
         } else {
             // just exit and try again later. If we fail 8 times in a row
             // then start discarding to prevent the pool filling up
-            if (dronecan.tx_fail_count < 8) {
+            if (dronecan.tx_fail_count < 80) {
                 dronecan.tx_fail_count++;
             } else {
+                protocol_stats.tx_errors++;
                 canardPopTxQueue(&dronecan.canard);
             }
             break;
         }
+    }
+}
+// #define CANARD_OK                                      0
+// // Value 1 is omitted intentionally, since -1 is often used in 3rd party code
+// #define CANARD_ERROR_INVALID_ARGUMENT                  2
+// #define CANARD_ERROR_OUT_OF_MEMORY                     3
+// #define CANARD_ERROR_NODE_ID_NOT_SET                   4
+// #define CANARD_ERROR_INTERNAL                          9
+// #define CANARD_ERROR_RX_INCOMPATIBLE_PACKET            10
+// #define CANARD_ERROR_RX_WRONG_ADDRESS                  11
+// #define CANARD_ERROR_RX_NOT_WANTED                     12
+// #define CANARD_ERROR_RX_MISSED_START                   13
+// #define CANARD_ERROR_RX_WRONG_TOGGLE                   14
+// #define CANARD_ERROR_RX_UNEXPECTED_TID                 15
+// #define CANARD_ERROR_RX_SHORT_FRAME                    16
+// #define CANARD_ERROR_RX_BAD_CRC                        17
+
+static void update_rx_protocol_stats(int16_t res)
+{
+    switch (res) {
+    case CANARD_OK:
+        protocol_stats.rx_frames++;
+        break;
+    case -CANARD_ERROR_OUT_OF_MEMORY:
+        protocol_stats.rx_error_oom++;
+        break;
+    case -CANARD_ERROR_INTERNAL:
+        protocol_stats.rx_error_internal++;
+        break;
+    case -CANARD_ERROR_RX_INCOMPATIBLE_PACKET:
+        protocol_stats.rx_ignored_not_wanted++;
+        break;
+    case -CANARD_ERROR_RX_WRONG_ADDRESS:
+        protocol_stats.rx_ignored_wrong_address++;
+        break;
+    case -CANARD_ERROR_RX_NOT_WANTED:
+        protocol_stats.rx_ignored_not_wanted++;
+        break;
+    case -CANARD_ERROR_RX_MISSED_START:
+        protocol_stats.rx_error_missed_start++;
+        break;
+    case -CANARD_ERROR_RX_WRONG_TOGGLE:
+        protocol_stats.rx_error_wrong_toggle++;
+        break;
+    case -CANARD_ERROR_RX_UNEXPECTED_TID:
+        protocol_stats.rx_ignored_unexpected_tid++;
+        break;
+    case -CANARD_ERROR_RX_SHORT_FRAME:
+        protocol_stats.rx_error_short_frame++;
+        break;
+    case -CANARD_ERROR_RX_BAD_CRC:
+        protocol_stats.rx_error_bad_crc++;
+        break;
+    default:
+        // mark all other errors as internal
+        protocol_stats.rx_error_internal++;
+        break;
     }
 }
 
@@ -1306,22 +1370,22 @@ static void processRx(void)
             memcpy(rx_frame.data, rxmsg.data, rx_frame.data_len);
             rx_frame.id = rxmsg.id;
             rx_frame.iface_id = ins.index;
-#if DEBUG_PKTS
-            const int16_t res = 
-#endif
-            canardHandleRxFrame(&dronecan.canard, &rx_frame, timestamp);
-#if DEBUG_PKTS
-            if (res < 0 &&
-                res != -CANARD_ERROR_RX_NOT_WANTED &&
-                res != -CANARD_ERROR_RX_WRONG_ADDRESS &&
-                res != -CANARD_ERROR_RX_MISSED_START) {
-                printf("Rx error %d, IF%d %lx: ", res, ins.index, rx_frame.id);
-                for (uint8_t i = 0; i < rx_frame.data_len; i++) {
-                    printf("%02x", rx_frame.data[i]);
+            const int16_t res =  canardHandleRxFrame(&dronecan.canard, &rx_frame, timestamp);
+            if (res == -CANARD_ERROR_RX_MISSED_START) {
+                // this might remaining frames from a message that we don't accept, so check
+                uint64_t dummy_signature;
+                if (shouldAcceptTransfer(&dronecan.canard,
+                                     &dummy_signature,
+                                     extractDataType(rx_frame.id),
+                                     extractTransferType(rx_frame.id),
+                                     1)) { // doesn't matter what we pass here
+                    update_rx_protocol_stats(res);
+                } else {
+                    protocol_stats.rx_ignored_not_wanted++;
                 }
-                printf("\n");
+            } else {
+                update_rx_protocol_stats(res);
             }
-#endif
         }
     }
 }
@@ -1335,18 +1399,57 @@ static uint16_t pool_peak_percent()
 
 static void node_status_send(void)
 {
-    uint8_t buffer[UAVCAN_PROTOCOL_NODESTATUS_MAX_SIZE];
-    node_status.uptime_sec = AP_HAL::millis() / 1000U;
+    {
+        uint8_t buffer[UAVCAN_PROTOCOL_NODESTATUS_MAX_SIZE];
+        node_status.uptime_sec = AP_HAL::millis() / 1000U;
 
-    node_status.vendor_specific_status_code = hal.util->available_memory();
+        node_status.vendor_specific_status_code = hal.util->available_memory();
 
-    uint32_t len = uavcan_protocol_NodeStatus_encode(&node_status, buffer, !periph.canfdout());
+        uint32_t len = uavcan_protocol_NodeStatus_encode(&node_status, buffer, !periph.canfdout());
 
-    canard_broadcast(UAVCAN_PROTOCOL_NODESTATUS_SIGNATURE,
-                    UAVCAN_PROTOCOL_NODESTATUS_ID,
-                    CANARD_TRANSFER_PRIORITY_LOW,
-                    buffer,
-                    len);
+        canard_broadcast(UAVCAN_PROTOCOL_NODESTATUS_SIGNATURE,
+                        UAVCAN_PROTOCOL_NODESTATUS_ID,
+                        CANARD_TRANSFER_PRIORITY_LOW,
+                        buffer,
+                        len);
+    }
+    // also send stats
+    if (periph.g.node_stats) {
+        uint8_t buffer[DRONECAN_PROTOCOL_STATS_MAX_SIZE];
+        uint32_t len = dronecan_protocol_Stats_encode(&protocol_stats, buffer, !periph.canfdout());
+        canard_broadcast(DRONECAN_PROTOCOL_STATS_SIGNATURE,
+                        DRONECAN_PROTOCOL_STATS_ID,
+                        CANARD_TRANSFER_PRIORITY_LOWEST,
+                        buffer,
+                        len);
+    }
+    if (periph.g.node_stats) {
+        for (auto &ins : instances) {
+            uint8_t buffer[DRONECAN_PROTOCOL_CANSTATS_MAX_SIZE];
+            dronecan_protocol_CanStats can_stats;
+            const AP_HAL::CANIface::bus_stats_t *bus_stats = ins.iface->get_statistics();
+            if (bus_stats == nullptr) {
+                return;
+            }
+            can_stats.interface = ins.index;
+            can_stats.tx_requests = bus_stats->tx_requests;
+            can_stats.tx_rejected = bus_stats->tx_rejected;
+            can_stats.tx_overflow = bus_stats->tx_overflow;
+            can_stats.tx_success = bus_stats->tx_success;
+            can_stats.tx_timedout = bus_stats->tx_timedout;
+            can_stats.tx_abort = bus_stats->tx_abort;
+            can_stats.rx_received = bus_stats->rx_received;
+            can_stats.rx_overflow = bus_stats->rx_overflow;
+            can_stats.rx_errors = bus_stats->rx_errors;
+            can_stats.busoff_errors = bus_stats->num_busoff_err;
+            uint32_t len = dronecan_protocol_CanStats_encode(&can_stats, buffer, !periph.canfdout());
+            canard_broadcast(DRONECAN_PROTOCOL_CANSTATS_SIGNATURE,
+                            DRONECAN_PROTOCOL_CANSTATS_ID,
+                            CANARD_TRANSFER_PRIORITY_LOWEST,
+                            buffer,
+                            len);
+        }
+    }
 }
 
 
