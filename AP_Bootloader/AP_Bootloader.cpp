@@ -61,6 +61,14 @@ AP_FlashIface_JEDEC ext_flash;
 
 int main(void)
 {
+#ifdef HAL_GPIO_PIN_LED_SCK
+    // force try to shut down LEDs
+    int i = 0;
+    while (i++ < 10){
+        profiLED_reset_LEDs(4);
+        chThdSleepMilliseconds(10);
+    }
+#endif
     bool try_boot = false;
     uint32_t timeout = HAL_BOOTLOADER_TIMEOUT;
 

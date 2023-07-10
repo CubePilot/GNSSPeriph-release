@@ -58,3 +58,5 @@ define CAN_APP_NODE_NAME "com.cubepilot.here4"
 # order of UARTs
 SERIAL_ORDER
 define HAL_USE_UART FALSE
+define HAL_BOARD_INIT_HOOK_CALL  profiLED_reset_LEDs(4);
+define HAL_BOARD_INIT_HOOK_DEFINE void profiLED_reset_LEDs(uint32_t num_leds);
