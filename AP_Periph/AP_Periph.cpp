@@ -209,10 +209,10 @@ void AP_Periph_FW::update_rainbow()
     last_update_ms = now;
     static uint8_t step;
     const uint8_t nsteps = ARRAY_SIZE(rgb_rainbow);
-    float brightness = 0.3;
+    float brightness = notify.get_rgb_led_brightness_percent() * 0.01f;
     for (uint8_t n=0; n<4; n++) {
         uint8_t i = (step + n) % nsteps;
-        periph.notify.handle_rgb(rgb_rainbow[i].red*brightness,
+        notify.handle_rgb(rgb_rainbow[i].red*brightness,
                                  rgb_rainbow[i].green*brightness,
                                  rgb_rainbow[i].blue*brightness);
     }
