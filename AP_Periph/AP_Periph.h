@@ -43,6 +43,9 @@ void stm32_watchdog_pat();
  */
 extern const app_descriptor_t app_descriptor;
 
+struct CanardInstance;
+struct CanardRxTransfer;
+
 class AP_Periph_FW {
 public:
     AP_Periph_FW();
@@ -244,6 +247,14 @@ public:
     
     static AP_Periph_FW *_singleton;
 
+    enum class DebugOptions {
+        SHOW_STACK = 0,
+        ENABLE_STATS = 2,
+    };
+    // check if an option is set
+    bool debug_option_is_set(const DebugOptions option) const {
+        return (uint8_t(g.debug.get()) & (1U<<uint8_t(option))) != 0;
+    }
     // show stack as DEBUG msgs
     void show_stack_free();
 
@@ -263,6 +274,16 @@ public:
         bool locked;
         uint32_t key;
     } monitor;
+
+    int8_t get_default_tunnel_serial_port(void);
+
+    void handle_tunnel_Targetted(CanardInstance* ins, CanardRxTransfer* transfer);
+
+    static bool canard_broadcast(uint64_t data_type_signature,
+                                uint16_t data_type_id,
+                                uint8_t priority,
+                                const void* payload,
+                                uint16_t payload_len);
 };
 
 namespace AP

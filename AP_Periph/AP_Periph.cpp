@@ -302,7 +302,7 @@ void AP_Periph_FW::update()
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS && CH_DBG_ENABLE_STACK_CHECK == TRUE
     static uint32_t last_debug_ms;
-    if (g.debug==1 && now - last_debug_ms > 5000) {
+    if (debug_option_is_set(DebugOptions::SHOW_STACK) && now - last_debug_ms > 5000) {
         last_debug_ms = now;
         show_stack_free();
     }

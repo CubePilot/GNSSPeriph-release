@@ -118,7 +118,7 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Param: DEBUG
     // @DisplayName: Debug
     // @Description: Debug
-    // @Values: 0:Disabled, 1:Show free stack space
+    // @Bitmask: 0:Show free stack space, 2:Enable sending stats
     // @User: Advanced
     GSCALAR(debug, "DEBUG", 0),
 
@@ -301,14 +301,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // can node FD Out baudrate
     GARRAY(can_terminator, 1,    "CAN2_TERMINATOR", 0),
 #endif
-
-    // @Param: CAN_STATS
-    // @DisplayName: CAN Statistics
-    // @Description: Enable CAN and Protocol statistics
-    // @Values: 0:Disabled,1:Enabled
-    // @User: Advanced
-    GSCALAR(node_stats, "CAN_NODE_STATS", 1),
-
     AP_VAREND
 };
 
