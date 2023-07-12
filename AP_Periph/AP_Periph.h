@@ -252,6 +252,7 @@ public:
 
     Canard::Publisher<uavcan_protocol_debug_LogMessage> log_pub{canard_iface};
 
+    // servers
     static void handle_get_node_info(const CanardRxTransfer& transfer, const uavcan_protocol_GetNodeInfoRequest &req);
     Canard::StaticCallback<uavcan_protocol_GetNodeInfoRequest> get_node_info_callback{&AP_Periph_DroneCAN::handle_get_node_info};
     Canard::Server<uavcan_protocol_GetNodeInfoRequest> get_node_info_server{canard_iface, get_node_info_callback};
@@ -272,6 +273,8 @@ public:
     Canard::StaticCallback<uavcan_protocol_RestartNodeRequest> restart_node_callback{&AP_Periph_DroneCAN::handle_restart_node};
     Canard::Server<uavcan_protocol_RestartNodeRequest> restart_node_server{canard_iface, restart_node_callback};
 
+
+    // subscribers
     static void handle_allocation_response(const CanardRxTransfer& transfer, const uavcan_protocol_dynamic_node_id_Allocation &msg);
     Canard::StaticCallback<uavcan_protocol_dynamic_node_id_Allocation> allocation_response_callback{&AP_Periph_DroneCAN::handle_allocation_response};
     Canard::Subscriber<uavcan_protocol_dynamic_node_id_Allocation> allocation_response_sub{allocation_response_callback, 0};

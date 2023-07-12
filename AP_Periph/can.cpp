@@ -55,7 +55,7 @@ extern const AP_HAL::HAL &hal;
 extern AP_Periph_FW periph;
 
 #ifndef HAL_CAN_POOL_SIZE
-#define HAL_CAN_POOL_SIZE 4000
+#define HAL_CAN_POOL_SIZE 16384
 #endif
 
 #ifndef HAL_PERIPH_LOOP_DELAY_US
@@ -678,32 +678,39 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     can_stats_pub.set_timeout_ms(1000);
 
     mag_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    mag_pub.set_timeout_ms(100);
+    mag_pub.set_timeout_ms(10);
 
     fix2_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    fix2_pub.set_timeout_ms(500);
+    fix2_pub.set_timeout_ms(50);
 
     aux_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    aux_pub.set_timeout_ms(500);
+    aux_pub.set_timeout_ms(50);
 
     gnss_status_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    gnss_status_pub.set_timeout_ms(500);
+    gnss_status_pub.set_timeout_ms(50);
 
     moving_baseline_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    moving_baseline_pub.set_timeout_ms(500);
+    moving_baseline_pub.set_timeout_ms(50);
 
     relposheading_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    relposheading_pub.set_timeout_ms(500);
+    relposheading_pub.set_timeout_ms(50);
 
     static_pressure_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    static_pressure_pub.set_timeout_ms(100);
+    static_pressure_pub.set_timeout_ms(20);
 
     static_temperature_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
-    static_temperature_pub.set_timeout_ms(100);
+    static_temperature_pub.set_timeout_ms(20);
 
     log_pub.set_priority(CANARD_TRANSFER_PRIORITY_LOWEST);
-    log_pub.set_timeout_ms(5000);
+    log_pub.set_timeout_ms(1000);
 
+    tunnel_pub.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
+    tunnel_pub.set_timeout_ms(5);
+
+    param_getset_server.set_timeout_ms(200);
+    param_executeopcode_server.set_timeout_ms(200);
+    begin_firmware_update_server.set_timeout_ms(200);
+    restart_node_server.set_timeout_ms(200);
 }
 
 void AP_Periph_FW::can_update()
