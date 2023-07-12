@@ -942,6 +942,7 @@ void AP_Periph_DroneCAN::can_gps_update(void)
 void AP_Periph_DroneCAN::send_moving_baseline_msg()
 {
 #if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
+    auto &gps = periph.gps;
     const uint8_t *data = nullptr;
     uint16_t len = 0;
     if (!gps.get_RTCMV3(data, len)) {
@@ -964,6 +965,7 @@ void AP_Periph_DroneCAN::send_moving_baseline_msg()
 
 void AP_Periph_DroneCAN::send_relposheading_msg() {
 #if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
+    auto &gps = periph.gps;
     float reported_heading;
     float relative_distance;
     float relative_down_pos;
