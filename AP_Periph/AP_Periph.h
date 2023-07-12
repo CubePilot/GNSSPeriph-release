@@ -209,6 +209,7 @@ public:
     } monitor;
 
     int8_t get_default_tunnel_serial_port(void);
+    static void set_rgb_led(uint8_t red, uint8_t green, uint8_t blue);
 
     AP_Periph_DroneCAN *dronecan;
 };

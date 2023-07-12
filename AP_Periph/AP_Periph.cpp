@@ -156,48 +156,6 @@ void AP_Periph_FW::init()
     start_ms = AP_HAL::native_millis();
 }
 
-/*
-  rotating rainbow pattern on startup
- */
-void AP_Periph_FW::update_rainbow()
-{
-    if (led_cmd_override) {
-        return;
-    }
-    uint32_t now = AP_HAL::native_millis();
-
-    static uint32_t last_update_ms;
-    const uint8_t step_ms = 100;
-    if (now - last_update_ms < step_ms) {
-        return;
-    }
-    const struct {
-        uint8_t red;
-        uint8_t green;
-        uint8_t blue;
-    } rgb_rainbow[] = {
-        { 255, 0, 0 },
-        { 255, 127, 0 },
-        { 255, 255, 0 },
-        { 0,   255, 0 },
-        { 0,   0,   255 },
-        { 75,  0,   130 },
-        { 143, 0,   255 },
-        { 0,   0,   0 },
-    };
-    last_update_ms = now;
-    static uint8_t step;
-    const uint8_t nsteps = ARRAY_SIZE(rgb_rainbow);
-    float brightness = notify.get_rgb_led_brightness_percent() * 0.01f;
-    for (uint8_t n=0; n<4; n++) {
-        uint8_t i = (step + n) % nsteps;
-        notify.handle_rgb(rgb_rainbow[i].red*brightness,
-                                 rgb_rainbow[i].green*brightness,
-                                 rgb_rainbow[i].blue*brightness);
-    }
-    step++;
-}
-
 
 void AP_Periph_FW::show_stack_free()
 {
@@ -238,18 +196,10 @@ void AP_Periph_FW::update()
     uint32_t now = AP_HAL::native_millis();
     if (now - last_led_ms > 1000) {
         last_led_ms = now;
-#ifdef HAL_GPIO_PIN_LED
-        if (!no_iface_finished_dna) {
-            palToggleLine(HAL_GPIO_PIN_LED);
-        }
-#endif
-
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
         check_for_serial_reboot_cmd(HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT);
 #endif
-
         SRV_Channels::enable_aux_servos();
-
         mavlink.send_heartbeat();
     }
 
