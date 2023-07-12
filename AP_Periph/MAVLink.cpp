@@ -187,7 +187,7 @@ void MAVLink_Periph::handle_open_drone_id_arm_status(const mavlink_message_t &ms
 {
     mavlink_open_drone_id_arm_status_t packet;
     mavlink_msg_open_drone_id_arm_status_decode(&msg, &packet);
-    periph.handle_open_drone_id_arm_status(packet);
+    periph.dronecan->handle_open_drone_id_arm_status(packet);
 }
 
 void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)

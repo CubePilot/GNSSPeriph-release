@@ -63,14 +63,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GARRAY(can_baudrate,     0, "CAN_BAUDRATE", 1000000),
 
 #if HAL_NUM_CAN_IFACES >= 2
-    // @Param: CAN_PROTOCOL
-    // @DisplayName: Enable use of specific protocol to be used on this port
-    // @Description: Enabling this option starts selected protocol that will use this virtual driver. At least one CAN port must be UAVCAN or else CAN1 gets set to UAVCAN
-    // @Values: 0:Disabled,1:UAVCAN,3:ToshibaCAN,4:PiccoloCAN,5:CANTester,6:EFI_NWPMU,7:USD1,8:KDECAN,9:PacketDigital
-    // @User: Advanced
-    // @RebootRequired: True
-    GARRAY(can_protocol,     0, "CAN_PROTOCOL", AP_CANManager::Driver_Type_UAVCAN),
-    
     // @Param: CAN2_BAUDRATE
     // @DisplayName: Bitrate of CAN2 interface
     // @Description: Bit rate can be set up to from 10000 to 1000000
@@ -78,32 +70,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @User: Advanced
     // @RebootRequired: True
     GARRAY(can_baudrate,     1, "CAN2_BAUDRATE", 1000000),
-
-    // @Param: CAN2_PROTOCOL
-    // @DisplayName: Enable use of specific protocol to be used on this port
-    // @Description: Enabling this option starts selected protocol that will use this virtual driver. At least one CAN port must be UAVCAN or else CAN1 gets set to UAVCAN
-    // @Values: 0:Disabled,1:UAVCAN,3:ToshibaCAN,4:PiccoloCAN,5:CANTester,6:EFI_NWPMU,7:USD1,8:KDECAN,9:PacketDigital
-    // @User: Advanced
-    // @RebootRequired: True
-    GARRAY(can_protocol,     1, "CAN2_PROTOCOL", AP_CANManager::Driver_Type_UAVCAN),
-#endif
-
-#if HAL_NUM_CAN_IFACES >= 3
-    // @Param: CAN3_BAUDRATE
-    // @DisplayName: Bitrate of CAN3 interface
-    // @Description: Bit rate can be set up to from 10000 to 1000000
-    // @Range: 10000 1000000
-    // @User: Advanced
-    // @RebootRequired: True
-    GARRAY(can_baudrate,    2, "CAN3_BAUDRATE", 1000000),
-
-    // @Param: CAN3_PROTOCOL
-    // @DisplayName: Enable use of specific protocol to be used on this port
-    // @Description: Enabling this option starts selected protocol that will use this virtual driver. At least one CAN port must be UAVCAN or else CAN1 gets set to UAVCAN
-    // @Values: 0:Disabled,1:UAVCAN,3:ToshibaCAN,4:PiccoloCAN,5:CANTester,6:EFI_NWPMU,7:USD1,8:KDECAN,9:PacketDigital
-    // @User: Advanced
-    // @RebootRequired: True
-    GARRAY(can_protocol,    2, "CAN3_PROTOCOL", AP_CANManager::Driver_Type_UAVCAN),
 #endif
 
 #if !defined(HAL_NO_FLASH_SUPPORT) && !defined(HAL_NO_ROMFS_SUPPORT)
@@ -135,21 +101,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Path: ../libraries/AP_GPS/AP_GPS.cpp
     GOBJECT(gps, "GPS", AP_GPS),
 
-#if HAL_NUM_CAN_IFACES >= 2
-    // @Param: MB_CAN_PORT
-    // @DisplayName: Moving Baseline CAN Port option
-    // @Description: Autoselect dedicated CAN port on which moving baseline data will be transmitted.
-    // @Values: 0:Sends moving baseline data on all ports,1:auto select remaining port for transmitting Moving baseline Data
-    // @User: Advanced
-    // @RebootRequired: True
-    GSCALAR(gps_mb_only_can_port, "GPS_MB_ONLY_PORT", 0),
-#endif
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_BATTERY
-    // @Group: BATT
-    // @Path: ../libraries/AP_BattMonitor/AP_BattMonitor.cpp
-    GOBJECT(battery, "BATT", AP_BattMonitor),
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_MAG
@@ -169,99 +120,17 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Description: Barometer Enable
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
-    GSCALAR(baro_enable, "BARO_ENABLE", 1),
+    GSCALAR(baro_enable, "BARO_ENABLE", 0),
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_AIRSPEED
-    // Airspeed driver
-    // @Group: ARSP
-    // @Path: ../libraries/AP_Airspeed/AP_Airspeed.cpp
-    GOBJECT(airspeed, "ARSP", AP_Airspeed),
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_RANGEFINDER
-    // @Param: RNGFND_BAUDRATE
-    // @DisplayName: Rangefinder serial baudrate
-    // @Description: Rangefinder serial baudrate.
-    // @Values: 1:1200,2:2400,4:4800,9:9600,19:19200,38:38400,57:57600,111:111100,115:115200,230:230400,256:256000,460:460800,500:500000,921:921600,1500:1500000
-    // @Increment: 1
-    // @User: Standard
-    // @RebootRequired: True
-    GSCALAR(rangefinder_baud, "RNGFND_BAUDRATE", HAL_PERIPH_RANGEFINDER_BAUDRATE_DEFAULT),
-
-    // @Param: RNGFND_PORT
-    // @DisplayName: Rangefinder Serial Port
-    // @Description: This is the serial port number where SERIALx_PROTOCOL will be set to Rangefinder.
-    // @Range: 0 10
-    // @Increment: 1
-    // @User: Advanced
-    // @RebootRequired: True
-    GSCALAR(rangefinder_port, "RNGFND_PORT", HAL_PERIPH_RANGEFINDER_PORT_DEFAULT),
-
-    // Rangefinder driver
-    // @Group: RNGFND
-    // @Path: ../libraries/AP_RangeFinder/AP_RangeFinder.cpp
-    GOBJECT(rangefinder, "RNGFND", RangeFinder),
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_ADSB
-    // @Param: ADSB_BAUDRATE
-    // @DisplayName: ADSB serial baudrate
-    // @Description: ADSB serial baudrate.
-    // @Values: 1:1200,2:2400,4:4800,9:9600,19:19200,38:38400,57:57600,111:111100,115:115200,230:230400,256:256000,460:460800,500:500000,921:921600,1500:1500000
-    // @Increment: 1
-    // @User: Standard
-    // @RebootRequired: True
-    GSCALAR(adsb_baudrate, "ADSB_BAUDRATE", HAL_PERIPH_ADSB_BAUD_DEFAULT),
-
-    // @Param: ADSB_PORT
-    // @DisplayName: ADSB Serial Port
-    // @Description: This is the serial port number where SERIALx_PROTOCOL will be set to ADSB.
-    // @Range: 0 10
-    // @Increment: 1
-    // @User: Advanced
-    // @RebootRequired: True
-    GSCALAR(adsb_port, "ADSB_PORT", HAL_PERIPH_ADSB_PORT_DEFAULT),
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_PWM_HARDPOINT
-    // @Param: HARDPOINT_ID
-    // @DisplayName: Hardpoint ID
-    // @Description: Hardpoint ID
-    // @User: Advanced
-    GSCALAR(hardpoint_id, "HARDPOINT_ID", HAL_PWM_HARDPOINT_ID_DEFAULT),
-
-    // @Param: HARDPOINT_RATE
-    // @DisplayName: Hardpoint PWM rate
-    // @Description: Hardpoint PWM rate
-    // @Range: 10 100
-    // @Units: Hz
-    // @Increment: 1
-    // @User: Advanced
-    GSCALAR(hardpoint_rate, "HARDPOINT_RATE", 100),
-#endif
-
-    // Servo driver
-    // @Group: OUT
-    // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
-    GOBJECT(servo_channels, "OUT",     SRV_Channels),
+    // // Servo driver
+    // // @Group: OUT
+    // // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
+    // GOBJECT(servo_channels, "OUT",     SRV_Channels),
     
     // @Group: NTF_
     // @Path: ../libraries/AP_Notify/AP_Notify.cpp
     GOBJECT(notify, "NTF_",  AP_Notify),
-
-#if HAL_LOGGING_ENABLED
-    // @Group: LOG
-    // @Path: ../libraries/AP_Logger/AP_Logger.cpp
-    GOBJECT(logger,           "LOG",  AP_Logger),
-
-    // @Param: LOG_BITMASK
-    // @DisplayName: Log bitmask
-    // @Description: 4 byte bitmap of log types to enable
-    // @Bitmask: 2:GPS
-    // @User: Standard
-    GSCALAR(log_bitmask,    "LOG_BITMASK",          4),
-#endif
 
     // @Param: SYSID_THISMAV
     // @DisplayName: MAVLink system ID of this vehicle

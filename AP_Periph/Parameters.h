@@ -59,9 +59,6 @@ public:
     AP_Int16 can_node;
     
     AP_Int32 can_baudrate[HAL_NUM_CAN_IFACES];
-#if HAL_NUM_CAN_IFACES >= 2
-    AP_Enum<AP_CANManager::Driver_Type> can_protocol[HAL_NUM_CAN_IFACES];
-#endif
 
 #ifdef HAL_PERIPH_ENABLE_BARO
     AP_Int8 baro_enable;
@@ -83,12 +80,6 @@ public:
 #ifdef HAL_PERIPH_ENABLE_PWM_HARDPOINT
     AP_Int16 hardpoint_id;
     AP_Int8 hardpoint_rate;
-#endif
-
-#ifdef HAL_PERIPH_ENABLE_GPS
-#if HAL_NUM_CAN_IFACES >= 2
-    AP_Int8 gps_mb_only_can_port;
-#endif
 #endif
 
     AP_Int8 debug;

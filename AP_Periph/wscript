@@ -18,6 +18,9 @@ except ImportError:
     
 
 def build(bld):
+    if bld.env.BOOTLOADER:
+        return
+
     targets = ['HerePro', 'Here3+', 'Here4']
     valid_target = False
     for t in targets:
@@ -26,6 +29,14 @@ def build(bld):
     if not valid_target:
         return
 
+    bld.env.DEFINES += [
+        'DRONECAN_CXX_WRAPPERS=1',
+        'USE_USER_HELPERS=1',
+        'CANARD_ENABLE_DEADLINE=1',
+        'CANARD_MULTI_IFACE=1',
+        ]
+    bld.env.INCLUDES += [bld.srcnode.find_dir('../AP_Periph').abspath()]
+
     libraries = ['AP_Common',
                     'AP_HAL',
                     'AP_HAL_Empty',
@@ -33,6 +44,7 @@ def build(bld):
                     'AP_BoardConfig',
                     'AP_BattMonitor',
                     'AP_CANManager',
+                    'AP_DroneCAN',
                     'AP_Param',
                     'StorageManager',
                     'AP_FlashStorage',

@@ -57,21 +57,12 @@ void loop(void)
 static uint32_t start_ms;
 
 AP_Periph_FW::AP_Periph_FW()
-#if HAL_LOGGING_ENABLED
-    : logger(g.log_bitmask)
-#endif
 {
     if (_singleton != nullptr) {
         AP_HAL::panic("AP_Periph_FW must be singleton");
     }
     _singleton = this;
 }
-
-#if HAL_LOGGING_ENABLED
-const struct LogStructure AP_Periph_FW::log_structure[] = {
-    LOG_COMMON_STRUCTURES,
-};
-#endif
 
 #ifdef GPIO_USART1_RX
 void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp)
@@ -112,10 +103,6 @@ void AP_Periph_FW::init()
 
     stm32_watchdog_pat();
 
-#if HAL_LOGGING_ENABLED
-    logger.Init(log_structure, ARRAY_SIZE(log_structure));
-#endif
-
     printf("Booting %08x:%08x %u/%u len=%u 0x%08x\n",
            app_descriptor.image_crc1,
            app_descriptor.image_crc2,
@@ -131,12 +118,7 @@ void AP_Periph_FW::init()
     imu.init(1000);
 #endif
 
-#ifdef HAL_PERIPH_ENABLE_GPS
     if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && !g.serial_i2c_mode) {
-#if HAL_LOGGING_ENABLED
-        #define MASK_LOG_GPS (1<<2)
-        gps.set_log_gps_bit(MASK_LOG_GPS);
-#endif
         gps.init(serial_manager);
 
     } else {
@@ -154,11 +136,8 @@ void AP_Periph_FW::init()
     i2c_event_handle.set_source(&i2c_event_source);
     i2c_event_handle.register_event(1);
     i2c_setup();
-#endif
 
-#ifdef HAL_PERIPH_ENABLE_MAG
     compass.init();
-#endif
 
 #ifdef HAL_PERIPH_ENABLE_BARO
     baro.init();
@@ -220,7 +199,6 @@ void AP_Periph_FW::update_rainbow()
 }
 
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS && CH_DBG_ENABLE_STACK_CHECK == TRUE
 void AP_Periph_FW::show_stack_free()
 {
     const uint32_t isr_stack_size = uint32_t((const uint8_t *)&__main_stack_end__ - (const uint8_t *)&__main_stack_base__);
@@ -239,7 +217,6 @@ void AP_Periph_FW::show_stack_free()
         can_printf("%s STACK=%u/%u\n", tp->name, unsigned(stack_free(tp->wabase)), unsigned(total_stack));
     }
 }
-#endif
 
 void AP_Periph_FW::rcout_update()
 {
@@ -267,27 +244,11 @@ void AP_Periph_FW::update()
         }
 #endif
 
-#if 0
-#ifdef HAL_PERIPH_ENABLE_GPS
-        hal.serial(0)->printf("GPS status: %u\n", (unsigned)gps.status());
-#endif
-#ifdef HAL_PERIPH_ENABLE_MAG
-        const Vector3f &field = compass.get_field();
-        hal.serial(0)->printf("MAG (%d,%d,%d)\n", int(field.x), int(field.y), int(field.z));
-#endif
-#ifdef HAL_PERIPH_ENABLE_BARO
-        hal.serial(0)->printf("BARO H=%u P=%.2f T=%.2f\n", baro.healthy(), baro.get_pressure(), baro.get_temperature());
-#endif
-#ifdef HAL_PERIPH_ENABLE_RANGEFINDER
-        hal.serial(0)->printf("RNG %u %ucm\n", rangefinder.num_sensors(), rangefinder.distance_cm_orient(ROTATION_NONE));
-#endif
-        hal.scheduler->delay(1);
-#endif
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
         check_for_serial_reboot_cmd(HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT);
 #endif
 
-    SRV_Channels::enable_aux_servos();
+        SRV_Channels::enable_aux_servos();
 
         mavlink.send_heartbeat();
     }
@@ -300,21 +261,11 @@ void AP_Periph_FW::update()
         can_printf("IERR 0x%x %u", unsigned(ierr.errors()), unsigned(ierr.last_error_line()));
     }
 
-#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS && CH_DBG_ENABLE_STACK_CHECK == TRUE
     static uint32_t last_debug_ms;
     if (debug_option_is_set(DebugOptions::SHOW_STACK) && now - last_debug_ms > 5000) {
         last_debug_ms = now;
         show_stack_free();
     }
-#endif
-    
-#ifdef HAL_PERIPH_ENABLE_BATTERY
-    if (now - battery.last_read_ms >= 100) {
-        // update battery at 10Hz
-        battery.last_read_ms = now;
-        battery.lib.read();
-    }
-#endif
 
     static uint32_t fiftyhz_last_update_ms;
     if (now - fiftyhz_last_update_ms >= 20) {
@@ -323,10 +274,6 @@ void AP_Periph_FW::update()
         notify.update();
         mavlink.update();
     }
-
-#if HAL_LOGGING_ENABLED
-    logger.periodic_tasks();
-#endif
 
     can_update();
 
@@ -347,27 +294,12 @@ void AP_Periph_FW::update()
     if (!g.serial_i2c_mode) {
         update_rainbow();
     }
-
-#ifdef HAL_PERIPH_ENABLE_ADSB
-    adsb_update();
-#endif
 }
 
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
 // check for uploader.py reboot command
 void AP_Periph_FW::check_for_serial_reboot_cmd(const int8_t serial_index)
 {
-    // These are the string definitions in uploader.py
-    //            NSH_INIT        = bytearray(b'\x0d\x0d\x0d')
-    //            NSH_REBOOT_BL   = b"reboot -b\n"
-    //            NSH_REBOOT      = b"reboot\n"
-
-    // This is the command sequence that is sent from uploader.py
-    //            self.__send(uploader.NSH_INIT)
-    //            self.__send(uploader.NSH_REBOOT_BL)
-    //            self.__send(uploader.NSH_INIT)
-    //            self.__send(uploader.NSH_REBOOT)
-
     for (uint8_t i=0; i<hal.num_serial; i++) {
         if (serial_index >= 0 && serial_index != i) {
             // a specific serial port was selected but this is not it
