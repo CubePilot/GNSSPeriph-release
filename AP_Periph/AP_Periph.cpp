@@ -85,6 +85,7 @@ void AP_Periph_FW::init()
     stm32_watchdog_init();
 #endif
 
+#ifdef HAL_USB_VBUS_SENS_CHAN
     vbus_voltage_source = hal.analogin->channel(HAL_USB_VBUS_SENS_CHAN);
 
     // sleep for 2ms to fetch the VBUS voltage
@@ -102,7 +103,7 @@ void AP_Periph_FW::init()
     } else {
         ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();
     }
-
+#endif
     stm32_watchdog_pat();
 
     hal.serial(0)->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 32, 32);
@@ -233,9 +234,11 @@ void AP_Periph_FW::rcout_update()
 
 void AP_Periph_FW::update()
 {
+#ifdef HAL_USB_VBUS_SENS_CHAN
     if (vbus_voltage_source->voltage_latest() > 4.0f) {
         ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();
     }
+#endif
 
 #ifdef ENABLE_BASE_MODE
     bool base_update = false;

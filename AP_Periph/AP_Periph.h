@@ -219,7 +219,9 @@ public:
     void gps_base_update();
 #endif
 
+#ifdef HAL_USB_VBUS_SENS_CHAN
     AP_HAL::AnalogSource *vbus_voltage_source;
+#endif
     int ubx_log_fd = -1;
     char _ubx_log_filename[48];
     uint16_t reboot_str_index;
