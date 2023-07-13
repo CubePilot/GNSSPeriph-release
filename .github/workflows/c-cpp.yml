@@ -131,5 +131,5 @@ jobs:
           release/Here4_FW.elf
           release/HerePro_FW.bin
           release/HerePro_FW_with_bl.hex
-          release/Here3Plus_FW.elf
+          release/HerePro_FW.elf
 
