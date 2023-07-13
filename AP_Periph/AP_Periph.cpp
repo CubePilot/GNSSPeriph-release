@@ -148,7 +148,12 @@ void AP_Periph_FW::init()
 
     hal.rcout->force_safety_off();
 
+#ifdef SRV_LED_CLK_CHANNEL
+    SRV_Channels::set_default_function(SRV_LED_CLK_CHANNEL - 1, SRV_LED_CLK_FUNCTION);
+    SRV_Channels::set_default_function(SRV_LED_DATA_CHANNEL - 1, SRV_LED_DATA_FUNCTION);
+#endif
     notify.init();
+
 
 #if AP_SCRIPTING_ENABLED
     scripting.init();

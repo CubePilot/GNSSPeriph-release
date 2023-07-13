@@ -122,11 +122,6 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @User: Standard
     GSCALAR(baro_enable, "BARO_ENABLE", 0),
 #endif
-
-    // // Servo driver
-    // // @Group: OUT
-    // // @Path: ../libraries/SRV_Channel/SRV_Channels.cpp
-    // GOBJECT(servo_channels, "OUT",     SRV_Channels),
     
     // @Group: NTF_
     // @Path: ../libraries/AP_Notify/AP_Notify.cpp
