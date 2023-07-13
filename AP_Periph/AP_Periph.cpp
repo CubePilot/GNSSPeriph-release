@@ -329,7 +329,6 @@ void AP_Periph_FW::check_for_serial_reboot_cmd(const int8_t serial_index)
         }
     }
 }
-#endif // HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
 
 void AP_Periph_FW::check_for_serial_reboot_cmd_byte(uint8_t data)
 {
@@ -348,6 +347,7 @@ void AP_Periph_FW::check_for_serial_reboot_cmd_byte(uint8_t data)
         hal.scheduler->reboot(true);
     }
 }
+#endif // HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
 
 // prepare for a safe reboot where PWMs and params are gracefully disabled
 // This is copied from AP_Vehicle::reboot(bool hold_in_bootloader) minus the actual reboot
