@@ -62,7 +62,6 @@ jobs:
       run: ./waf configure --board Here3+ --bootloader
     - name: build
       run: ./waf bootloader
-      continue-on-error: true
     - name: copy Here3+ files to release
       run: |
         mkdir -p release/
@@ -93,11 +92,22 @@ jobs:
       run: ./waf configure --board Here4 --bootloader
     - name: build
       run: ./waf bootloader
-      continue-on-error: true
     - name: copy Here4 files to release
       run: |
         cp build/Here4/bin/AP_Periph.bin release/Here4_FW.bin
         cp build/Here4/bin/AP_Periph_with_bl.hex release/Here4_FW_with_bl.hex
+    - name: configure
+      run: ./waf configure --board HerePro
+    - name: build
+      run: ./waf AP_Periph
+    - name: configure bootloader
+      run: ./waf configure --board HerePro --bootloader
+    - name: build
+      run: ./waf bootloader
+    - name: copy HerePro files to release
+      run: |
+        cp build/HerePro/bin/AP_Periph.bin release/HerePro_FW.bin
+        cp build/HerePro/bin/AP_Periph_with_bl.hex release/HerePro_FW_with_bl.hex
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v2.2.4
       with:
@@ -114,4 +124,6 @@ jobs:
           release/Here3Plus_FW_with_bl.hex
           release/Here4_FW.bin
           release/Here4_FW_with_bl.hex
+          release/HerePro_FW.bin
+          release/HerePro_FW_with_bl.hex
 
