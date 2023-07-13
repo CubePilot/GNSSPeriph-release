@@ -398,7 +398,7 @@ void AP_Periph_DroneCAN::node_status_send(void)
         }
 
         for (auto &ins : instances) {
-            dronecan_protocol_CanStats can_stats;
+            dronecan_protocol_CanStats can_stats {};
             const AP_HAL::CANIface::bus_stats_t *bus_stats = ins.iface->get_statistics();
             if (bus_stats == nullptr) {
                 return;
@@ -510,14 +510,14 @@ bool AP_Periph_FW::can_do_dna()
 
     // Structure of the request is documented in the DSDL definition
     // See http://uavcan.org/Specification/6._Application_level_functions/#dynamic-node-id-allocation
-    uavcan_protocol_dynamic_node_id_Allocation allocation_request;
+    uavcan_protocol_dynamic_node_id_Allocation allocation_request {};
 
     allocation_request.node_id = PreferredNodeID;
     if (node_id_allocation_unique_id_offset == 0) {
         allocation_request.first_part_of_unique_id = true;
     }
 
-    uint8_t my_unique_id[sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data)];
+    uint8_t my_unique_id[sizeof(uavcan_protocol_dynamic_node_id_Allocation::unique_id.data)] {};
     readUniqueID(my_unique_id);
 
     static const uint8_t MaxLenOfUniqueIDInRequest = 6;
