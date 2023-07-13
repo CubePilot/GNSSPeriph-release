@@ -1,6 +1,11 @@
 name: Build GNSSPeriph
 
-on: [push, pull_request, workflow_dispatch]
+on: 
+  push:
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [created]
 
 jobs:
   build:
@@ -111,6 +116,11 @@ jobs:
         cp build/HerePro/bin/AP_Periph.bin release/HerePro_FW.bin
         cp build/HerePro/bin/AP_Periph_with_bl.hex release/HerePro_FW_with_bl.hex
         cp build/HerePro/bin/AP_Periph release/HerePro_FW.elf
+    - name: package release
+      run: |
+        cd release
+        zip -r ../GNSSPeriph.zip .
+        cd ..
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v2.2.4
       with:
@@ -118,18 +128,14 @@ jobs:
         name: GNSSPeriph
         # A file, directory or wildcard pattern that describes what to upload
         path: release/
-    - name: Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
+    # upload to github releases
+    - name: Upload Release Assets
+      uses: actions/upload-release-asset@latest
+      if: github.event_name == 'release'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}    
       with:
-        files: |
-          release/Here3Plus_FW.bin
-          release/Here3Plus_FW_with_bl.hex
-          release/Here3Plus_FW.elf
-          release/Here4_FW.bin
-          release/Here4_FW_with_bl.hex
-          release/Here4_FW.elf
-          release/HerePro_FW.bin
-          release/HerePro_FW_with_bl.hex
-          release/HerePro_FW.elf
-
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_name: GNSSPeriph.zip
+        asset_path: GNSSPeriph.zip
+        asset_content_type: application/zip
