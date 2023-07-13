@@ -378,12 +378,6 @@ void AP_Periph_DroneCAN::handle_global_time_sync(const CanardRxTransfer& transfe
 void AP_Periph_DroneCAN::handle_restart_node(const CanardRxTransfer& transfer, const uavcan_protocol_RestartNodeRequest &req)
 {
     uavcan_protocol_RestartNodeResponse resp {};
-    if (req.magic_number != UAVCAN_PROTOCOL_RESTARTNODE_REQUEST_SIGNATURE) {
-        printf("RestartNode: bad magic number\n");
-        resp.ok = false;
-        periph.dronecan->restart_node_server.respond(transfer, resp);
-        return;
-    }
     resp.ok = true;
     printf("RestartNode\n");
     periph.dronecan->restart_node_server.respond(transfer, resp);
