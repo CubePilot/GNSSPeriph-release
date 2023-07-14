@@ -35,11 +35,12 @@ public:
     mavlink_channel_t get_channel() const { return chan; }
 
     bool process_byte(const uint8_t c);
-
+    void send_version() const;
 private:
     void handleMessage(const mavlink_message_t &msg);
     MAV_RESULT handle_preflight_reboot(const mavlink_command_long_t &packet);
     void handle_open_drone_id_arm_status(const mavlink_message_t &msg);
+    void handle_command_long(const mavlink_message_t &msg);
     uint8_t sysid_my_gcs() const;
 
     void handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg);
