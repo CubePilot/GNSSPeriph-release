@@ -106,7 +106,7 @@ void AP_Periph_FW::init()
 #endif
     stm32_watchdog_pat();
 
-    hal.serial(0)->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 32, 32);
+    hal.serial(0)->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 2048, 2048);
     hal.serial(3)->begin(115200, 128, 256);
 
     load_parameters();
@@ -119,7 +119,10 @@ void AP_Periph_FW::init()
 #ifdef DRONEID_MODULE_PORT
     // initialise CUBEID
     mavlink.init(DRONEID_MODULE_PORT, 115200);
+#elif defined(ENABLE_BASE_MODE)
+    mavlink.init(0, 115200);
 #endif
+
     serial_manager.init();
 
     stm32_watchdog_pat();
@@ -142,9 +145,6 @@ void AP_Periph_FW::init()
     bool enable_gps = true;
 #ifdef I2C_SLAVE_ENABLED
     enable_gps = !g.serial_i2c_mode;
-#endif
-#ifdef ENABLE_BASE_MODE
-    enable_gps = !g.gps_passthrough && !g.gps_ubx_log;
 #endif
 
     if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && enable_gps) {
@@ -189,7 +189,6 @@ void AP_Periph_FW::init()
         if (value > 1.0) {
             AP_Param::set_by_name("NTF_LED_BRIGHT", 1);
         }
-        AP_Param::set_by_name("GPS_PASSTHROUGH", 1);
     }
 
 #if AP_SCRIPTING_ENABLED
@@ -241,11 +240,7 @@ void AP_Periph_FW::update()
 #endif
 
 #ifdef ENABLE_BASE_MODE
-    bool base_update = false;
-    base_update = g.gps_passthrough || g.gps_ubx_log;
-    if (base_update) {
-        gps_base_update();
-    }
+    gps_base.update();
 #endif
 
     SRV_Channels::enable_aux_servos();
@@ -282,7 +277,7 @@ void AP_Periph_FW::update()
         mavlink.update();
     }
 
-    can_update();
+    rcout_update();
 
     if (_setup_ser_i2c_mode && AP_Periph_FW::no_iface_finished_dna) {
         hal.scheduler->expect_delay_ms(100);
@@ -301,6 +296,8 @@ void AP_Periph_FW::update()
     if (!g.serial_i2c_mode) {
         update_rainbow();
     }
+
+    can_update();
 }
 
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
