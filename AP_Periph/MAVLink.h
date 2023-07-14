@@ -32,6 +32,9 @@ public:
     uint32_t write(const uint8_t *tbuf, uint32_t len);
     mavlink_message_t* channel_buffer() { return &chan_buffer; }
     mavlink_status_t* channel_status() { return &chan_status; }
+    mavlink_channel_t get_channel() const { return chan; }
+
+    bool process_byte(const uint8_t c);
 
 private:
     void handleMessage(const mavlink_message_t &msg);

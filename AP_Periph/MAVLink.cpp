@@ -59,10 +59,18 @@ void MAVLink_Periph::update()
     const uint16_t nbytes = serial->available();
     for (uint16_t i=0; i<nbytes; i++) {
         const uint8_t c = (uint8_t)serial->read();
-        if (mavlink_parse_char(chan, c, &chan_buffer, &chan_status)) {
-            handleMessage(chan_buffer);
-        }
+        process_byte(c);
     }
+}
+
+bool MAVLink_Periph::process_byte(const uint8_t c)
+{
+    bool handled = false;
+    if (mavlink_parse_char(chan, c, &chan_buffer, &chan_status)) {
+        handled = true;
+        handleMessage(chan_buffer);
+    }
+    return handled;
 }
 
 uint32_t MAVLink_Periph::txspace() const
@@ -201,7 +209,22 @@ void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)
         break;
     case MAVLINK_MSG_ID_HEARTBEAT:
         handle_odid_heartbeat(msg);
-        // fallthrough
+        break;
+    case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
+#ifdef ENABLE_BASE_MODE
+        periph.gps_base.handle_param_request_list(msg);
+#endif
+        break;
+    case MAVLINK_MSG_ID_PARAM_SET:
+#ifdef ENABLE_BASE_MODE
+        periph.gps_base.handle_param_set(msg);
+#endif
+        break;
+    case MAVLINK_MSG_ID_PARAM_REQUEST_READ:
+#ifdef ENABLE_BASE_MODE
+        periph.gps_base.handle_param_request_read(msg);
+#endif
+        break;
     default:
         break;
     }     // end switch

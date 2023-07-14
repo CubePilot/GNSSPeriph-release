@@ -33,6 +33,7 @@
 #include <canard/service_server.h>
 #include <AP_HAL/AP_HAL.h>
 #include "MAVLink.h"
+#include "GPS_Base.h"
 
 #if defined(HAL_PERIPH_ENABLE_BATTERY_MPPT_PACKETDIGITAL) && HAL_MAX_CAN_PROTOCOL_DRIVERS < 2
 #error "Battery MPPT PacketDigital driver requires at least two CAN Ports"
@@ -215,16 +216,14 @@ public:
 
     void show_progress(uint32_t pct);
 
-#ifdef ENABLE_BASE_MODE
-    void gps_base_update();
-#endif
-
 #ifdef HAL_USB_VBUS_SENS_CHAN
     AP_HAL::AnalogSource *vbus_voltage_source;
 #endif
-    int ubx_log_fd = -1;
-    char _ubx_log_filename[48];
     uint16_t reboot_str_index;
+
+#ifdef ENABLE_BASE_MODE
+    GPS_Base gps_base;
+#endif
 };
 
 

@@ -27,26 +27,67 @@
 #define MSG_RXM_RAW  0x10
 #define MSG_RXM_RAWX 0x15
 
-
-static ByteBuffer gps_buffer(256);
-static ByteBuffer gcs_buffer(256);
-
-int ubx_file = -1;
-
-struct date_time {
-    uint16_t year;
-    uint8_t month;
-    uint8_t day;
-    uint8_t hour;
-    uint8_t minute;
-    uint8_t second;
-    uint32_t utc_sec;
-} dt;
-
 extern const AP_HAL::HAL& hal;
 
+// table of user settable parameters
+const AP_Param::GroupInfo GPS_Base::var_info[] = {
+    // @Param: ENABLE
+    // @DisplayName: Enable GPS Base Mode
+    // @Description: Enable GPS Base Mode
+    // @User: Standard
+    AP_GROUPINFO_FLAGS("_ENABLE",  1, GPS_Base, _enabled, 0, AP_PARAM_FLAG_ENABLE),
+
+    // @Param: LOGGING
+    // @DisplayName: Enable Logging
+    // @Description: Enable Logging
+    // @User: Standard
+    AP_GROUPINFO("_LOGGING",  2, GPS_Base, _logging, 1),
+
+    // @Param: S_IN_TIME
+    // @DisplayName: Time to wait for Survey in to be asserted
+    // @Description: Time to wait for Survey in to be asserted
+    // @Range: 0 1000
+    // @User: Standard
+    AP_GROUPINFO("_S_IN_TIME",  3, GPS_Base, _s_in_time, 20.0),
+
+    // @Param: S_IN_ACC
+    // @DisplayName: Accuracy to wait for Survey in to be asserted
+    // @Description: Accuracy to wait for Survey in to be asserted
+    // @Range: 0 1000
+    // @User: Standard
+    AP_GROUPINFO("_S_IN_ACC",  4, GPS_Base, _s_in_acc, 2.0),
+
+    // @Param: S_IN_LAT
+    // @DisplayName: Latitude to wait for Survey in to be asserted
+    // @Description: Latitude to wait for Survey in to be asserted
+    // @Range: -90 90
+    // @User: Standard
+    AP_GROUPINFO("_S_IN_LAT",  5, GPS_Base, _s_in_lat, 0.0),
+
+    // @Param: S_IN_LON
+    // @DisplayName: Longitude to wait for Survey in to be asserted
+    // @Description: Longitude to wait for Survey in to be asserted
+    // @Range: -180 180
+    // @User: Standard
+    AP_GROUPINFO("_S_IN_LON",  6, GPS_Base, _s_in_lon, 0.0),
+
+    // @Param: S_IN_ALT
+    // @DisplayName: Altitude to wait for Survey in to be asserted
+    // @Description: Altitude to wait for Survey in to be asserted
+    // @Range: -1000 1000
+    // @User: Standard
+    AP_GROUPINFO("_S_IN_ALT",  7, GPS_Base, _s_in_alt, -1000.0),
+
+    AP_GROUPEND
+};
+
+GPS_Base::GPS_Base() {
+    // setup parameters
+    AP_Param::setup_object_defaults(this, var_info);
+}
+
 // convert week number and time of week to date/time
-static void gps_week_time(const uint16_t week, const uint32_t tow)
+void GPS_Base::gps_week_time(const uint16_t week, const uint32_t tow)
 {
     // days since 1st epoch (6th Jan 1980)
     uint32_t days = (week * 7) + (tow / 86400000) + 5;
@@ -89,7 +130,7 @@ static void gps_week_time(const uint16_t week, const uint32_t tow)
     dt.second = s;
 }
 
-static void parse_time_ubx() {
+void GPS_Base::parse_time_ubx() {
     uint8_t tmp[8];
     if (gps_buffer.peek(0) == UBX_PREAMBLE1 &&
         gps_buffer.peek(1) == UBX_PREAMBLE2 &&
@@ -132,18 +173,18 @@ static void parse_time_ubx() {
     }
 }
 
-bool gps_received_preamble = false;
-bool gcs_received_preamble = false;
-uint8_t gps_length_counter = 0;
-uint8_t gcs_length_counter = 0;
-
-uint16_t gps_num_bytes_to_rx = 0;
-uint16_t gcs_num_bytes_to_rx = 0;
-
-void AP_Periph_FW::gps_base_update() {
+void GPS_Base::update() {
     // get GPS port from serial_manager
-    AP_HAL::UARTDriver *gps_uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_GPS, 0);
-    AP_HAL::UARTDriver *gcs_uart = hal.serial(0);
+    if (gps_uart == NULL) {
+        gps_uart = periph.serial_manager.find_serial(AP_SerialManager::SerialProtocol_GPS, 0);
+    }
+    if (gcs_uart == NULL) {
+        gcs_uart = hal.serial(0);
+    }
+
+    if (!_enabled || connected_to_gcs) {
+        return;
+    }
 
     // lock the gcs and gps ports
     gps_uart->lock_port(LOCK_ID, LOCK_ID);
@@ -172,7 +213,7 @@ void AP_Periph_FW::gps_base_update() {
         gps_buffer.write(&byte, 1);
         if ((gps_received_preamble && gps_num_bytes_to_rx == 0) || gps_buffer.space() == 0) {
             parse_time_ubx();
-            if (ubx_log_fd == -1 && dt.year >= 2023 && g.gps_ubx_log.get()) {
+            if (ubx_log_fd == -1 && dt.year >= 2023 && _logging.get()) {
                 // open a log file with new date/time
                 // check if ppk directory exists
                 int ret = 0;
@@ -220,7 +261,13 @@ void AP_Periph_FW::gps_base_update() {
 
     // read bytes from the GCS port and push them to the GPS port
     while (gcs_uart->read_locked(&byte, 1, LOCK_ID) == 1) {
-        check_for_serial_reboot_cmd_byte(byte);
+        periph.check_for_serial_reboot_cmd_byte(byte);
+        connected_to_gcs = periph.mavlink.process_byte(byte);
+        if (connected_to_gcs) {
+            // we are connected to the GCS, so stop sending bytes to the GPS
+            gcs_uart->lock_port(0, 0);
+            break;
+        }
         if (gcs_num_bytes_to_rx == 0 && ((byte == UBX_PREAMBLE2) && (last_byte == UBX_PREAMBLE1))) {
             gcs_received_preamble = true;
             gcs_length_counter = 5;
@@ -250,4 +297,154 @@ void AP_Periph_FW::gps_base_update() {
         last_byte = byte;
     }
 }
+
+static MAV_PARAM_TYPE mav_param_type(enum ap_var_type t)
+{
+    if (t == AP_PARAM_INT8) {
+	    return MAV_PARAM_TYPE_INT8;
+    }
+    if (t == AP_PARAM_INT16) {
+	    return MAV_PARAM_TYPE_INT16;
+    }
+    if (t == AP_PARAM_INT32) {
+	    return MAV_PARAM_TYPE_INT32;
+    }
+    // treat any others as float
+    return MAV_PARAM_TYPE_REAL32;
+}
+
+void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
+{
+    // unlock the gcs_port
+    gcs_uart->lock_port(0,0);
+    mavlink_param_request_list_t packet;
+    mavlink_msg_param_request_list_decode(&msg, &packet);
+    char key[AP_MAX_NAME_SIZE+1] = "B";
+    if (_enabled) {
+        uint8_t index = 0;
+        // send parameter list
+        for (auto var : var_info) {
+            ap_var_type var_type;
+            key[1] = '\0';
+            strcat(key, var.name);
+            AP_Param *vp = AP_Param::find(key, &var_type);
+            if (vp == nullptr) {
+                continue;
+            }
+            mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+                                        key,
+                                        vp->cast_to_float(var_type),
+                                        mav_param_type(var_type),
+                                        ARRAY_SIZE(var_info) - 1,
+                                        index++);
+        }
+    } else {
+        // just send enable
+        strcat(key, "_ENABLE");
+        mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+                                    key,
+                                    (float)_enabled.get(),
+                                    MAV_PARAM_TYPE_INT8,
+                                    1,
+                                    0);
+    }
+}
+
+void GPS_Base::handle_param_set(const mavlink_message_t &msg)
+{
+    mavlink_param_set_t packet;
+    mavlink_msg_param_set_decode(&msg, &packet);
+    enum ap_var_type var_type;
+    gcs_uart->lock_port(0,0);
+
+    // set parameter
+    AP_Param *vp;
+    char key[AP_MAX_NAME_SIZE+1];
+    strncpy(key, (char *)packet.param_id, AP_MAX_NAME_SIZE);
+    key[AP_MAX_NAME_SIZE] = 0;
+
+    // we only allow parameter sets for BASE, check starts with B_
+    if (strncmp(key, "B_", 2) != 0) {
+        return;
+    }
+
+    // find existing param so we can get the old value
+    uint16_t parameter_flags = 0;
+    vp = AP_Param::find(key, &var_type, &parameter_flags);
+    if (vp == nullptr || isnan(packet.param_value) || isinf(packet.param_value)) {
+        return;
+    }
+    float old_value = vp->cast_to_float(var_type);
+
+    // set the value
+    vp->set_float(packet.param_value, var_type);
+
+    /*
+      we force the save if the value is not equal to the old
+      value. This copes with the use of override values in
+      constructors, such as PID elements. Otherwise a set to the
+      default value which differs from the constructor value doesn't
+      save the change
+     */
+    bool force_save = !is_equal(packet.param_value, old_value);
+
+    // save the change
+    vp->save(force_save);
+
+    if (force_save && (parameter_flags & AP_PARAM_FLAG_ENABLE)) {
+        AP_Param::invalidate_count();
+    }
+
+    // index of the key
+    uint8_t index = 0;
+    for (auto var : var_info) {
+        if (strcmp(var.name, key+2) == 0) {
+            break;
+        }
+        index++;
+    }
+
+    
+    // send back the new value
+    mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+                                 key,
+                                 vp->cast_to_float(var_type),
+                                 mav_param_type(var_type),
+                                 ARRAY_SIZE(var_info),
+                                 index);
+}
+
+void GPS_Base::handle_param_request_read(const mavlink_message_t &msg)
+{
+    mavlink_param_request_read_t packet;
+    mavlink_msg_param_request_read_decode(&msg, &packet);
+    enum ap_var_type var_type;
+    gcs_uart->lock_port(0,0);
+
+    AP_Param *vp;
+    char key[AP_MAX_NAME_SIZE+1];
+    strncpy(key, (char *)packet.param_id, AP_MAX_NAME_SIZE);
+    key[AP_MAX_NAME_SIZE] = 0;
+
+    // we only allow parameter sets for BASE, check starts with B_
+    if (strncmp(key, "B_", 2) != 0) {
+        return;
+    }
+    uint16_t parameter_flags = 0;
+    vp = AP_Param::find(key, &var_type, &parameter_flags);
+
+    if (vp == nullptr) {
+        return;
+    }
+    float value = vp->cast_to_float(var_type);
+    // send parameter value
+    mavlink_msg_param_value_send(
+        periph.mavlink.get_channel(),
+        key,
+        value,
+        mav_param_type(var_type),
+        AP_Param::count_parameters(),
+        -1);
+}
+
 #endif
