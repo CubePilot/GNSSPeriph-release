@@ -1,3 +1,6 @@
 [submodule "ardupilot"]
 	path = ardupilot
 	url = git@github.com:CubePilot/ardupilot.git
+[submodule "RTKLIB"]
+	path = RTKLIB
+	url = https://github.com/CubePilot/RTKLIB
