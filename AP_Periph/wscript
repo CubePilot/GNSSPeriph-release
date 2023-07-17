@@ -20,12 +20,14 @@ except ImportError:
 def build(bld):
     if bld.env.BOOTLOADER:
         return
-
+    build_rtklib = True
     targets = ['HerePro', 'Here3+', 'Here4']
     valid_target = False
     for t in targets:
         if fnmatch.fnmatch(bld.env.BOARD, t):
             valid_target = True
+        if fnmatch.fnmatch(bld.env.BOARD, 'HerePro'):
+            build_rtklib = False
     if not valid_target:
         return
 
@@ -80,6 +82,16 @@ def build(bld):
         ]
     )
 
+    if build_rtklib:
+        bld.stlib(source=[bld.srcnode.find_node('../RTKLIB/src/rtkpos.c'),
+                        bld.srcnode.find_node('../RTKLIB/src/rcv/ublox.c'),
+                        bld.srcnode.find_node('../RTKLIB/src/rtcm3.c')],
+                includes=[bld.srcnode.find_dir('../RTKLIB/src'),],
+                defines=['INHIBIT_RTK_LOCK_MACROS', 'NO_THREADS_API'],
+                # no error format
+                cflags=['-Wno-error=format', '-Wno-error=unused-but-set-variable'],
+                target='rtklib')
+
     # build external libcanard library
     bld.stlib(source=[bld.srcnode.find_node('modules/DroneCAN/libcanard/canard.c')] +
                      bld.bldnode.ant_glob('modules/DroneCAN/libcanard/dsdlc_generated/src/**.c'),
@@ -89,7 +101,7 @@ def build(bld):
 
     bld.ap_program(
         program_name='AP_Periph',
-        use=['AP_Periph_libs', 'libcanard'],
+        use=['AP_Periph_libs', 'libcanard', 'rtklib'],
         program_groups=['bin','AP_Periph'],
         includes=[bld.env.SRCROOT + '/modules/DroneCAN/libcanard',
                   bld.env.BUILDROOT + '/modules/DroneCAN/libcanard/dsdlc_generated/include']
