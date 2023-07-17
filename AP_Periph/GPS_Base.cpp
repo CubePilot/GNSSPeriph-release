@@ -44,6 +44,7 @@
 #define MSG_CFG_CFG          0x09
 #define MSG_CFG_NAV_SETTINGS 0x24
 #define MSG_CFG_PRT          0x00
+#define MSG_CFG_TMODE3       0x71
 
 #define MSG_RXM_RAWX 0x15
 #define MSG_RXM_SFRBX 0x13
@@ -162,29 +163,20 @@ void GPS_Base::gps_week_time(const uint16_t week, const uint32_t tow)
     dt.second = s;
 }
 
-void GPS_Base::parse_time_ubx() {
-    uint8_t tmp[8];
-    if (gps_buffer.peek(0) == UBX_PREAMBLE1 &&
-        gps_buffer.peek(1) == UBX_PREAMBLE2 &&
-        gps_buffer.peek(2) == CLASS_RXM) {
-        if (gps_buffer.peek(3) == MSG_RXM_RAWX) {
-            double tow;
-            int16_t week;
-            // peek 8 bytes at offset 6 to get tow
-            for (uint8_t i=0; i<8; i++) {
-                tmp[i] = gps_buffer.peek(6+i);
+void GPS_Base::parse_runtime_ubx(uint8_t byte) {
+    if (parse_ubx(byte)) {
+        // handle RAWX message
+        if (_class == CLASS_RXM && _msg_id == MSG_RXM_RAWX) {
+            if (_buffer.raw_rawx.week > 0 && _buffer.raw_rawx.rcvTow >= 0) {
+                gps_week_time((uint16_t)_buffer.raw_rawx.week, (uint32_t)(_buffer.raw_rawx.rcvTow * 1000));
+                can_printf("GPS: %d-%02d-%02d %02d:%02d:%02d\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
             }
-            memcpy(&tow, tmp, 8);
-            // peek 2 bytes at offset 14 to get week
-            tmp[0] = gps_buffer.peek(14);
-            tmp[1] = gps_buffer.peek(15);
-            memcpy(&week, tmp, 2);
-            if (week > 0 && tow >= 0) {
-                gps_week_time((uint16_t)week, (uint32_t)(tow * 1000));
+        } else if (_class == CLASS_NAV && _msg_id == MSG_NAV_SVIN) {
+            can_printf("GPS: Survey in status: %s Active:%d Acc:%fm\n", _buffer.nav_svin.valid ? "Valid":"Invalid", _buffer.nav_svin.active, _buffer.nav_svin.meanAcc/10000.0);
+            if (_buffer.nav_svin.valid) {
+                can_printf("GPS: Survey in complete\n");
             }
         }
-        // print date/time
-        can_printf("%04d-%02d-%02d %02d:%02d:%02d\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
     }
 }
 
@@ -332,6 +324,11 @@ void GPS_Base::handle_ubx_msg()
                         can_printf("GPS_Base: config saved");
                         ubx_config_state++;
                     }
+                } else if (ubx_config_state == SETTING_SURVEYIN_CONFIG) {
+                    if (_buffer.ack_ack.msg_class == CLASS_CFG &&
+                        _buffer.ack_ack.msg_id == MSG_CFG_TMODE3) {
+                        ubx_config_state++;
+                    }
                 }
             }
             break;
@@ -349,10 +346,14 @@ void GPS_Base::handle_ubx_msg()
             switch (_msg_id) {
                 case MSG_CFG_PRT:
                     if (ubx_config_state == GETTING_PORT_INDEX &&
-                        (_buffer.cfg_prt.portID < ARRAY_SIZE(ubx_cfg_msg_rate_6::rates))) {
+                        (_buffer.cfg_prt.portID < ARRAY_SIZE(ubx_cfg_msg_rate_6::rates)) &&
+                        (_buffer.cfg_prt.outProtoMask & ((1U << 5) | (1U << 0)))) {
                         Debug("Port ID: %d", _buffer.cfg_prt.portID);
                         _ublox_port = _buffer.cfg_prt.portID;
                         ubx_config_state++;
+                    } else if (ubx_config_state == GETTING_PORT_INDEX) {
+                        _buffer.cfg_prt.outProtoMask = ((1U << 5) | (1U << 0));
+                        _send_message(CLASS_CFG, MSG_CFG_PRT, (void*)&_buffer.cfg_prt, sizeof(ubx_cfg_prt));
                     }
                     break;
                 case MSG_CFG_RATE:
@@ -514,6 +515,30 @@ void GPS_Base::do_configurations()
             Debug("Setting RXM_SFRBX rate");
             configure_message_rate(CLASS_RXM, MSG_RXM_SFRBX, 1);
             break;
+        case SETTING_SURVEYIN_CONFIG:
+            if ((AP_HAL::millis() - _last_surveyin_config_ms) > 1000) {
+                can_printf("GPS_Base: Setting survey in config");
+                ubx_cfg_tmode3 surveyin_cfg {};
+                if (_s_in_lat == 0.0 && _s_in_lon == 0.0 && _s_in_alt == -1000.0) {
+                    surveyin_cfg.flags = 1;
+                    surveyin_cfg.fixedPosAcc = 0;
+                    surveyin_cfg.svinAccLimit = _s_in_acc*10000.0;
+                } else {
+                    surveyin_cfg.flags = 256 + 2; // LLA
+                    surveyin_cfg.ecefXOrLat = _s_in_lat*1e7;
+                    surveyin_cfg.ecefXOrLatHP = (_s_in_lat*1e7 - surveyin_cfg.ecefXOrLat)*100.0;
+                    surveyin_cfg.ecefYOrLon = _s_in_lon*1e7;
+                    surveyin_cfg.ecefYOrLonHP = (_s_in_lon*1e7 - surveyin_cfg.ecefYOrLon)*100.0;
+                    surveyin_cfg.ecefZOrAlt = _s_in_alt*100;
+                    surveyin_cfg.ecefZOrAltHP = (_s_in_alt*100 - surveyin_cfg.ecefZOrAlt)*100.0;
+                    surveyin_cfg.fixedPosAcc = 1;
+                    surveyin_cfg.svinAccLimit = 2000;
+                }
+                surveyin_cfg.svinMinDur = _s_in_time;
+                _last_surveyin_config_ms = AP_HAL::millis();
+                _send_message(CLASS_CFG, MSG_CFG_TMODE3, &surveyin_cfg, sizeof(surveyin_cfg));
+            }
+            break;
         case SETTING_SAVE_CONFIG:
             if ((AP_HAL::millis() - _last_save_config_ms) > 1000) {
                 can_printf("GPS_Base: Saving config");
@@ -557,7 +582,12 @@ void GPS_Base::update() {
     gcs_uart->lock_port(LOCK_ID, LOCK_ID);
     uint8_t byte, last_byte = 0;
 
-    if (gcs_uart->get_usb_baud() != gps_uart->get_baud_rate()) {
+    if (_s_in_enabled && (gps_uart->get_baud_rate() != 460800)) {
+        // if we are doing survey in, we need to be at 460800 baud
+        can_printf("GPS_Base: Setting baud rate to 460800");
+        gps_uart->end();
+        gps_uart->begin_locked(460800, 0, 0, LOCK_ID);
+    } else if ((gcs_uart->get_usb_baud() != gps_uart->get_baud_rate()) && !_s_in_enabled) {
         gps_uart->end();
         gps_uart->begin_locked(gcs_uart->get_usb_baud(), 0, 0, LOCK_ID);
     }
@@ -575,9 +605,14 @@ void GPS_Base::update() {
                 gps_num_bytes_to_rx = ((byte<<8) + last_byte) + 2;
             }
         }
-        gps_buffer.write(&byte, 1);
+        if (gps_buffer.write(&byte, 1)) {
+            parse_runtime_ubx(byte);
+            if (rtcm3_parser.read(byte)) {
+                can_printf("GPS_Base: RTCM3: %d", rtcm3_parser.get_id());
+            }
+        }
+
         if ((gps_received_preamble && gps_num_bytes_to_rx == 0) || gps_buffer.space() == 0) {
-            parse_time_ubx();
             if (ubx_log_fd == -1 && dt.year >= 2023 && _logging.get()) {
                 // open a log file with new date/time
                 // check if ppk directory exists

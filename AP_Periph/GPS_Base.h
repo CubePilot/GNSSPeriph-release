@@ -1,5 +1,6 @@
 #include "AP_Periph.h"
 #include <AP_Param/AP_Param.h>
+#include <AP_GPS/RTCM3_Parser.h>
 
 #ifdef ENABLE_BASE_MODE
 
@@ -15,7 +16,7 @@ public:
 
 private:
     void gps_week_time(const uint16_t week, const uint32_t tow);
-    void parse_time_ubx();
+    void parse_runtime_ubx(uint8_t byte);
     void _update_checksum(uint8_t *data, uint16_t len, uint8_t &ck_a, uint8_t &ck_b);
     bool _send_message(uint8_t msg_class, uint8_t msg_id, const void *msg, uint16_t size);
     void do_configurations();
@@ -52,11 +53,49 @@ private:
 
     struct PACKED ubx_cfg_prt {
         uint8_t portID;
+        uint8_t reserved0;
+        uint16_t txReady;
+        uint32_t mode;
+        uint32_t baudRate;
+        uint16_t inProtoMask;
+        uint16_t outProtoMask;
+        uint16_t flags;
+        uint16_t reserved1;
     };
     struct PACKED ubx_cfg_nav_rate {
         uint16_t measure_rate_ms;
         uint16_t nav_rate;
         uint16_t timeref;
+    };
+    struct PACKED ubx_nav_svin {
+        uint8_t version;
+        uint8_t reserved0[3];
+        uint32_t iTOW;
+        uint32_t dur;
+        int32_t meanX;
+        int32_t meanY;
+        int32_t meanZ;
+        int8_t meanXHP;
+        int8_t meanYHP;
+        int8_t meanZHP;
+        uint8_t reserved1;
+        uint32_t meanAcc;
+        uint32_t obs;
+        uint8_t valid;
+        uint8_t active;
+        uint8_t reserved2[2];
+    };
+
+    struct PACKED ubx_raw_rawx {
+        double rcvTow;
+        uint16_t week;
+        int8_t leapS;
+        uint8_t numMeas;
+        uint8_t recStat;
+        uint8_t version;
+        uint8_t reserved1[2];
+        // per sat
+        uint8_t data[32*40];
     };
 
     struct PACKED ubx_cfg_msg {
@@ -85,6 +124,23 @@ private:
         uint8_t msg_id;
     };
 
+    struct PACKED ubx_cfg_tmode3 {
+        uint8_t version;
+        uint8_t reserved0;
+        uint16_t flags;
+        int32_t ecefXOrLat;
+        int32_t ecefYOrLon;
+        int32_t ecefZOrAlt;
+        int8_t ecefXOrLatHP;
+        int8_t ecefYOrLonHP;
+        int8_t ecefZOrAltHP;
+        uint8_t reserved;
+        uint32_t fixedPosAcc;
+        uint32_t svinMinDur;
+        uint32_t svinAccLimit;
+        uint8_t reserved1[8];
+    };
+
     union {
         DEFINE_BYTE_ARRAY_METHODS
         ubx_mon_ver mon_ver;
@@ -93,6 +149,8 @@ private:
         ubx_ack_ack ack_ack;
         ubx_cfg_prt cfg_prt;
         ubx_cfg_msg_rate_6 cfg_msg_rate_6;
+        ubx_nav_svin nav_svin;
+        ubx_raw_rawx raw_rawx;
     } _buffer;
 
     struct ubx_cfg_msg_rate curr_msg;
@@ -114,12 +172,14 @@ private:
         SETTING_RXM_RAWX,
         SETTING_RXM_SFRBX,
         SETTING_SAVE_CONFIG,
+        SETTING_SURVEYIN_CONFIG,
         SETTING_FINISHED
     };
     uint8_t ubx_config_state;
 
     uint32_t _last_config_ms;
     uint8_t _ublox_port;
+    uint32_t _last_surveyin_config_ms;
 
     ByteBuffer gps_buffer{256};
     ByteBuffer gcs_buffer{256};
@@ -160,6 +220,7 @@ private:
 
     AP_HAL::UARTDriver* gps_uart;
     AP_HAL::UARTDriver* gcs_uart;
+    RTCM3_Parser rtcm3_parser;
 };
 
 #endif
