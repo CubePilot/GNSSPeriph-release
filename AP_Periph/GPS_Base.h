@@ -11,6 +11,7 @@ public:
     void handle_param_set(const mavlink_message_t &msg);
     void handle_param_request_list(const mavlink_message_t &msg);
     void handle_param_request_read(const mavlink_message_t &msg);
+    bool enabled() const { return _enabled; } 
 
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -21,7 +22,7 @@ private:
     bool _send_message(uint8_t msg_class, uint8_t msg_id, const void *msg, uint16_t size);
     void do_configurations();
     bool configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
-    bool request_message_rate(uint8_t msg_class, uint8_t msg_id);
+    void update_leds();
 
     void handle_ubx_msg();
 
@@ -141,6 +142,12 @@ private:
         uint8_t reserved1[8];
     };
 
+    struct PACKED ubx_cfg_reset {
+        uint16_t navBbrMask;
+        uint8_t resetMode;
+        uint8_t reserved0;
+    };
+
     union {
         DEFINE_BYTE_ARRAY_METHODS
         ubx_mon_ver mon_ver;
@@ -154,7 +161,8 @@ private:
     } _buffer;
 
     struct ubx_cfg_msg_rate curr_msg;
-
+    struct ubx_nav_svin curr_svin;
+    uint32_t _start_mean_acc;
     enum {
         SETTING_BAUD,
         CHECKING_VERSION,
@@ -173,6 +181,7 @@ private:
         SETTING_RXM_SFRBX,
         SETTING_SAVE_CONFIG,
         SETTING_SURVEYIN_CONFIG,
+        SETTING_COLD_START,
         SETTING_FINISHED
     };
     uint8_t ubx_config_state;
