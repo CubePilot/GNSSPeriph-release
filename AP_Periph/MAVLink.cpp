@@ -30,6 +30,12 @@
 #pragma GCC diagnostic pop
 #endif
 
+#if 0
+#define Debug(fmt, args...) do { printf("%s:%d: " fmt "\n", __FUNCTION__, __LINE__, ##args); } while (0)
+#else
+#define Debug(fmt, args...)
+#endif
+
 mavlink_system_t mavlink_system = {3,1};
 
 extern const AP_HAL::HAL &hal;
@@ -288,7 +294,7 @@ void MAVLink_Periph::handle_command_long(const mavlink_message_t &msg)
 
 void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)
 {
-    can_printf("MAVLink_Periph::handleMessage %d", msg.msgid);
+    Debug("MAVLink_Periph::handleMessage %d", msg.msgid);
     switch (msg.msgid) {
     case MAVLINK_MSG_ID_CUBEPILOT_FIRMWARE_UPDATE_RESP:
         handle_cubepilot_firmware_update_resp(msg);

@@ -17,6 +17,7 @@
 #include <AP_Filesystem/AP_Filesystem.h>
 #include <stdio.h>
 #include <AP_GPS/AP_GPS_UBLOX.h>
+#include <AP_SerialLED/AP_SerialLED.h>
 
 #ifdef ENABLE_BASE_MODE
 
@@ -45,6 +46,7 @@
 #define MSG_CFG_NAV_SETTINGS 0x24
 #define MSG_CFG_PRT          0x00
 #define MSG_CFG_TMODE3       0x71
+#define MSG_CFG_RST          0x04
 
 #define MSG_RXM_RAWX 0x15
 #define MSG_RXM_SFRBX 0x13
@@ -109,7 +111,7 @@ const AP_Param::GroupInfo GPS_Base::var_info[] = {
     // @Description: Altitude to wait for Survey in to be asserted
     // @Range: -1000 1000
     // @User: Standard
-    AP_GROUPINFO("_S_IN_ALT",  8, GPS_Base, _s_in_alt, -1000.0),
+    AP_GROUPINFO("_S_IN_ALT",  8, GPS_Base, _s_in_alt, 0.0),
 
     AP_GROUPEND
 };
@@ -176,6 +178,10 @@ void GPS_Base::parse_runtime_ubx(uint8_t byte) {
             if (_buffer.nav_svin.valid) {
                 can_printf("GPS: Survey in complete\n");
             }
+            if (_start_mean_acc == 0.0 && _buffer.nav_svin.active && (_buffer.nav_svin.meanAcc < (50*10000))) {
+                _start_mean_acc = _buffer.nav_svin.meanAcc;
+            }
+            memcpy(&curr_svin, &_buffer.nav_svin, sizeof(curr_svin));
         }
     }
 }
@@ -347,11 +353,12 @@ void GPS_Base::handle_ubx_msg()
                 case MSG_CFG_PRT:
                     if (ubx_config_state == GETTING_PORT_INDEX &&
                         (_buffer.cfg_prt.portID < ARRAY_SIZE(ubx_cfg_msg_rate_6::rates)) &&
-                        (_buffer.cfg_prt.outProtoMask & ((1U << 5) | (1U << 0)))) {
+                        (_buffer.cfg_prt.outProtoMask & ((1U << 5)) &&(_buffer.cfg_prt.outProtoMask & (1U << 0)))) {
                         Debug("Port ID: %d", _buffer.cfg_prt.portID);
                         _ublox_port = _buffer.cfg_prt.portID;
                         ubx_config_state++;
                     } else if (ubx_config_state == GETTING_PORT_INDEX) {
+                        can_printf("GPS_Base: Port ID: %d %x", _buffer.cfg_prt.portID, _buffer.cfg_prt.outProtoMask);
                         _buffer.cfg_prt.outProtoMask = ((1U << 5) | (1U << 0));
                         _send_message(CLASS_CFG, MSG_CFG_PRT, (void*)&_buffer.cfg_prt, sizeof(ubx_cfg_prt));
                     }
@@ -519,7 +526,7 @@ void GPS_Base::do_configurations()
             if ((AP_HAL::millis() - _last_surveyin_config_ms) > 1000) {
                 can_printf("GPS_Base: Setting survey in config");
                 ubx_cfg_tmode3 surveyin_cfg {};
-                if (_s_in_lat == 0.0 && _s_in_lon == 0.0 && _s_in_alt == -1000.0) {
+                if (_s_in_lat == 0.0 && _s_in_lon == 0.0 && _s_in_alt == 0.0) {
                     surveyin_cfg.flags = 1;
                     surveyin_cfg.fixedPosAcc = 0;
                     surveyin_cfg.svinAccLimit = _s_in_acc*10000.0;
@@ -551,6 +558,18 @@ void GPS_Base::do_configurations()
                 _send_message(CLASS_CFG, MSG_CFG_CFG, &save_cfg, sizeof(save_cfg));
             }
             break;
+        case SETTING_COLD_START:
+            if ((AP_HAL::millis() - _last_save_config_ms) > 2000) {
+                can_printf("GPS_Base: Cold start");
+                static const ubx_cfg_reset cold_start {
+                    navBbrMask: 0xFFFF,
+                    resetMode: 0x02,
+                    reserved0: 0x00,
+                };
+                _send_message(CLASS_CFG, MSG_CFG_RST, &cold_start, sizeof(cold_start));
+                ubx_config_state++;
+            }
+            break;
         case SETTING_FINISHED:
             can_printf("GPS_Base: Configuration Finished");
             _ppk_config_finished = true;
@@ -558,6 +577,40 @@ void GPS_Base::do_configurations()
     };
 }
 
+void GPS_Base::update_leds()
+{
+    if (!_s_in_enabled) {
+        // turn off all the leds
+        periph.notify.handle_rgb(0, 0, 0);
+        return;
+    }
+    auto serial_led = AP_SerialLED::get_singleton();
+    bool no_lock = !_ppk_config_finished || _start_mean_acc == 0;
+    const float brightness = hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : periph.notify.get_rgb_led_brightness_percent() * 0.01f;
+    if (no_lock && !curr_svin.valid) {
+        // set all the leds to yellow while configuring
+        for (uint8_t i=0; i<periph.notify.get_led_len(); i++) {
+            serial_led->set_RGB(SRV_LED_DATA_CHANNEL, i, 255*brightness, 255*brightness, 0);
+        }
+    } else {
+        float progress = (_start_mean_acc - curr_svin.meanAcc)/(_start_mean_acc - (_s_in_acc*10000));
+        if (progress < 0.0) {
+            progress = 0.0;
+        } else if (progress > 1.0) {
+            progress = 1.0;
+        }
+        // set the number of leds to the progress
+        uint8_t num_leds = (uint8_t)(progress * periph.notify.get_led_len());
+        for (uint8_t i=0; i<periph.notify.get_led_len(); i++) {
+            if (i < num_leds) {
+                serial_led->set_RGB(SRV_LED_DATA_CHANNEL, i, 0, 255*brightness, 0);
+            } else {
+                serial_led->set_RGB(SRV_LED_DATA_CHANNEL, i, 0, 0, 0);
+            }
+        }
+    }
+    serial_led->send(SRV_LED_DATA_CHANNEL);
+}
 
 void GPS_Base::update() {
     // get GPS port from serial_manager
@@ -571,6 +624,8 @@ void GPS_Base::update() {
     if (!_enabled || connected_to_gcs) {
         return;
     }
+
+    update_leds();
 
     // lock the gcs and gps ports
     gps_uart->lock_port(LOCK_ID, LOCK_ID);
@@ -719,15 +774,28 @@ void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
     gcs_uart->lock_port(0,0);
     mavlink_param_request_list_t packet;
     mavlink_msg_param_request_list_decode(&msg, &packet);
-    char key[AP_MAX_NAME_SIZE+1] = "B";
+    char key[AP_MAX_NAME_SIZE+1] = "FORMAT_VERSION";
+    uint8_t index = 0;
+    ap_var_type var_type;
+    // set format_version
+    AP_Param *vp = AP_Param::find("FORMAT_VERSION", &var_type);
+    if (vp == nullptr) {
+        return;
+    }
+    mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+                                key,
+                                vp->cast_to_float(var_type),
+                                mav_param_type(var_type),
+                                ARRAY_SIZE(var_info), // also includes FORMAT_VERSION
+                                index++);
+    strcpy(key, "B");
+
     if (_enabled) {
-        uint8_t index = 0;
         // send parameter list
         for (auto var : var_info) {
-            ap_var_type var_type;
             key[1] = '\0';
             strcat(key, var.name);
-            AP_Param *vp = AP_Param::find(key, &var_type);
+            vp = AP_Param::find(key, &var_type);
             if (vp == nullptr) {
                 continue;
             }
@@ -735,7 +803,7 @@ void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
                                         key,
                                         vp->cast_to_float(var_type),
                                         mav_param_type(var_type),
-                                        ARRAY_SIZE(var_info) - 1,
+                                        ARRAY_SIZE(var_info), // also includes FORMAT_VERSION
                                         index++);
         }
     } else {
@@ -745,8 +813,8 @@ void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
                                     key,
                                     (float)_enabled.get(),
                                     MAV_PARAM_TYPE_INT8,
-                                    1,
-                                    0);
+                                    2,
+                                    index);
     }
 }
 
@@ -763,8 +831,8 @@ void GPS_Base::handle_param_set(const mavlink_message_t &msg)
     strncpy(key, (char *)packet.param_id, AP_MAX_NAME_SIZE);
     key[AP_MAX_NAME_SIZE] = 0;
 
-    // we only allow parameter sets for BASE, check starts with B_
-    if (strncmp(key, "B_", 2) != 0) {
+    // we only allow parameter sets for BASE, check starts with B_, and FORMAT_VERSION
+    if ((strncmp(key, "B_", 2) != 0) && (strncmp(key, "FORMAT_VERSION", sizeof("FORMAT_VERSION")) != 0)) {
         return;
     }
 
@@ -826,10 +894,11 @@ void GPS_Base::handle_param_request_read(const mavlink_message_t &msg)
     strncpy(key, (char *)packet.param_id, AP_MAX_NAME_SIZE);
     key[AP_MAX_NAME_SIZE] = 0;
 
-    // we only allow parameter sets for BASE, check starts with B_
-    if (strncmp(key, "B_", 2) != 0) {
+    // we only allow parameter sets for BASE, check starts with B_, and FORMAT_VERSION
+    if ((strncmp(key, "B_", 2) != 0) && (strncmp(key, "FORMAT_VERSION", sizeof("FORMAT_VERSION")) != 0)) {
         return;
     }
+
     uint16_t parameter_flags = 0;
     vp = AP_Param::find(key, &var_type, &parameter_flags);
 

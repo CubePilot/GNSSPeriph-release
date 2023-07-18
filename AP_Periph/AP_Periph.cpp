@@ -179,6 +179,8 @@ void AP_Periph_FW::init()
 #ifdef SRV_LED_CLK_CHANNEL
     SRV_Channels::set_default_function(SRV_LED_CLK_CHANNEL - 1, SRV_LED_CLK_FUNCTION);
     SRV_Channels::set_default_function(SRV_LED_DATA_CHANNEL - 1, SRV_LED_DATA_FUNCTION);
+#elif defined(SRV_LED_DATA_CHANNEL)
+    SRV_Channels::set_default_function(SRV_LED_DATA_CHANNEL - 1, SRV_LED_DATA_FUNCTION);
 #endif
     notify.init();
 
@@ -223,7 +225,6 @@ void AP_Periph_FW::rcout_update()
         return;
     }
     rcout_has_new_data_to_update = false;
-
     SRV_Channels::calc_pwm();
     SRV_Channels::cork();
     SRV_Channels::output_ch_all();
