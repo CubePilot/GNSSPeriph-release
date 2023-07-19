@@ -7,8 +7,8 @@ jobs:
     runs-on: ubuntu-20.04
     container: ardupilot/ardupilot-dev-chibios:latest
     env:
-      HERE3_CUBEID_TAG: v1.5
-      HERE4_CUBEID_TAG: v1.5
+      HERE3_CUBEID_TAG: v1.6
+      HERE4_CUBEID_TAG: v1.6
     steps:
     - name: Install dependencies
       run: |
