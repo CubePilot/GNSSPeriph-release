@@ -165,6 +165,9 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // can node FD Out baudrate
     GARRAY(can_terminator, 1,    "CAN2_TERMINATOR", 0),
 #endif
+
+    // CubeID firmware update
+    GSCALAR(cubeid_fw_update_enabled,    "CUBEID_FW_UPDATE", 1),
     AP_VAREND
 };
 

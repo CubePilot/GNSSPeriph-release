@@ -53,6 +53,7 @@ public:
         k_param_can_terminator0,
         k_param_can_terminator1,
         k_param_can_node_stats,
+        k_param_cubeid_fw_update_enabled,
     };
 
     AP_Int16 format_version;
@@ -97,7 +98,7 @@ public:
     AP_Int8 serial_i2c_mode;
     AP_Int8 can_terminator[HAL_NUM_CAN_IFACES];
     AP_Int8 node_stats;
-
+    AP_Int8 cubeid_fw_update_enabled;
     Parameters() {}
 };
 

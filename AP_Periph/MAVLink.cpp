@@ -155,7 +155,7 @@ void MAVLink_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
 {
     mavlink_heartbeat_t packet;
     mavlink_msg_heartbeat_decode(&msg, &packet);
-    if (packet.type == MAV_TYPE_ODID && !cubeid_fw_updated) {
+    if (packet.type == MAV_TYPE_ODID && !cubeid_fw_updated && periph.g.cubeid_fw_update_enabled) {
         // open firmware from ROMFS
         if (cubeid_fw_fd == -1) {
             cubeid_fw_fd = AP::FS().open("@ROMFS//CubeID_fw.bin", O_RDONLY);

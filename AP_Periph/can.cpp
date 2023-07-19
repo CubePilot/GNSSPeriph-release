@@ -638,7 +638,7 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     static_temperature_pub.set_timeout_ms(20);
 
     log_pub.set_priority(CANARD_TRANSFER_PRIORITY_LOWEST);
-    log_pub.set_timeout_ms(1000);
+    log_pub.set_timeout_ms(10);
 
     tunnel_pub.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
     tunnel_pub.set_timeout_ms(5);
