@@ -702,3 +702,18 @@ void can_printf(const char *fmt, ...)
 
     periph.dronecan->log_pub.broadcast(pkt);
 }
+
+#ifdef ENABLE_RTKLIB
+void can_log_level_printf(uint8_t level, const char *fmt, ...)
+{
+    uavcan_protocol_debug_LogMessage pkt {};
+    va_list ap;
+    va_start(ap, fmt);
+    uint32_t n = vsnprintf((char*)pkt.text.data, sizeof(pkt.text.data), fmt, ap);
+    va_end(ap);
+    pkt.text.len = MIN(n, sizeof(pkt.text.data));
+    pkt.level.value = level-1;
+
+    periph.dronecan->log_pub.broadcast(pkt);
+}
+#endif

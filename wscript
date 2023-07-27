@@ -388,6 +388,11 @@ configuration in order to save typing.
     g.add_option('--assert-cc-version',
                  default=None,
                  help='fail configure if not using the specified gcc version')
+
+    g.add_option('--enable-rtklib',
+                 action='store_true',
+                 default=False,
+                 help="Enable RTKLIB")
     
 def _collect_autoconfig_files(cfg):
     for m in sys.modules.values():
@@ -432,6 +437,8 @@ def configure(cfg):
     cfg.env.ENABLE_MALLOC_GUARD = cfg.options.enable_malloc_guard
     cfg.env.ENABLE_STATS = cfg.options.enable_stats
     cfg.env.SAVE_TEMPS = cfg.options.save_temps
+    cfg.env.ENABLE_RTKLIB = cfg.options.enable_rtklib
+    cfg.msg("RTKLIB enabled:", 'yes' if cfg.env.ENABLE_RTKLIB else 'no')
 
     cfg.env.HWDEF_EXTRA = cfg.options.extra_hwdef
     if cfg.env.HWDEF_EXTRA:

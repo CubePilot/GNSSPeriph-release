@@ -19,6 +19,7 @@
 #include <AP_Scripting/AP_Scripting.h>
 #include <AP_InertialSensor/AP_InertialSensor.h>
 
+#include <AP_RTC/AP_RTC.h>
 #include <AP_RTC/JitterCorrection.h>
 #include <AP_HAL/CANIface.h>
 #include <AP_HAL_ChibiOS/EventSource.h>
@@ -39,6 +40,10 @@
 #error "Battery MPPT PacketDigital driver requires at least two CAN Ports"
 #endif
 
+#ifdef ENABLE_RTKLIB
+#define FILE int
+#include <rtklib.h>
+#endif
 
 #include "Parameters.h"
 
@@ -226,6 +231,18 @@ public:
 #ifdef ENABLE_BASE_MODE
     GPS_Base gps_base;
 #endif
+
+#ifdef ENABLE_RTKLIB
+    ByteBuffer* rtklib_raw_buffer;
+    void rtklib_init();
+    void rtklib_update();
+    void rtklib_handle_rtcm_fragment(const uint8_t *data, uint16_t len);
+    raw_t *ubx_data;
+    rtcm_t *rtcm_data;
+    rtk_t *rtk;
+    bool rtklib_initialised;
+    AP_RTC rtc;
+#endif
 };
 
 
@@ -350,5 +367,8 @@ extern AP_Periph_FW periph;
 
 extern "C" {
 void can_printf(const char *fmt, ...) FMT_PRINTF(1,2);
+#ifdef ENABLE_RTKLIB
+gtime_t get_curr_time();
+#endif
 }
 

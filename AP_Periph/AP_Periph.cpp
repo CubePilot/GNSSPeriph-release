@@ -78,7 +78,10 @@ void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t ti
 #endif
 void AP_Periph_FW::init()
 {
-    
+#ifdef ENABLE_RTKLIB
+    rtklib_init();
+#endif
+
     // always run with watchdog enabled. This should have already been
     // setup by the bootloader, but if not then enable now
 #ifndef DISABLE_WATCHDOG
@@ -242,6 +245,10 @@ void AP_Periph_FW::update()
 
 #ifdef ENABLE_BASE_MODE
     gps_base.update();
+#endif
+
+#ifdef ENABLE_RTKLIB
+    rtklib_update();
 #endif
 
     SRV_Channels::enable_aux_servos();

@@ -197,6 +197,9 @@ void AP_Periph_DroneCAN::send_relposheading_msg() {
  */
 void AP_Periph_DroneCAN::handle_RTCMStream(const CanardRxTransfer& transfer, const uavcan_equipment_gnss_RTCMStream &req)
 {
+#ifdef ENABLE_RTKLIB
+    periph.rtklib_handle_rtcm_fragment(req.data.data, req.data.len);
+#endif
     periph.gps.handle_gps_rtcm_fragment(0, req.data.data, req.data.len);
 }
 
