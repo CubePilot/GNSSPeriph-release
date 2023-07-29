@@ -36,7 +36,7 @@ def build(bld):
         ]
     bld.env.INCLUDES += [bld.srcnode.find_dir('../AP_Periph').abspath()]
     if bld.env.ENABLE_RTKLIB:
-        bld.env.DEFINES += ['ENABLE_RTKLIB', 'INHIBIT_RTK_LOCK_MACROS', 'NO_THREADS_API', 'NO_FS_PLATFORM', 'NOCALLOC=0', 'CUSTOM_TIME_API', 'ENAGLO', 'ENAQZS', 'ENAGAL', 'ENACMP']
+        bld.env.DEFINES += ['ENABLE_RTKLIB', 'INHIBIT_RTK_LOCK_MACROS', 'NO_THREADS_API', 'NO_FS_PLATFORM', 'NOCALLOC=1', 'CUSTOM_TIME_API', 'ENAGLO', 'ENAQZS', 'ENAGAL', 'ENACMP']
         bld.env.INCLUDES += [bld.srcnode.find_dir('../RTKLIB/src').abspath()]
 
     libraries = ['AP_Common',
