@@ -26,14 +26,14 @@ extern const AP_HAL::HAL &hal;
 static const prcopt_t prcopt={ /* defaults processing options */
     // PMODE_KINEMA,SOLTYPE_FORWARD, /* mode,soltype */
     PMODE_MOVEB, SOLTYPE_FORWARD, /* mode,soltype */
-    2,SYS_GPS|SYS_GLO|SYS_GAL|SYS_QZS|SYS_CMP,  /* nf, navsys */
+    1,SYS_GPS|SYS_GLO|SYS_GAL|SYS_QZS|SYS_CMP,  /* nf, navsys */
     15.0*D2R,{{0,0}},           /* elmin,snrmask */
     0,3,3,1,0,1,                /* sateph,modear,glomodear,gpsmodear,bdsmodear,arfilter */
     20,0,4,5,10,20,             /* maxout,minlock,minfixsats,minholdsats,mindropsats,minfix */
-    1,1,1,1,0,                  /* armaxiter,estion,esttrop,dynamics,tidecorr */
+    1,0,0,0,0,                  /* armaxiter,no-estion,no-esttrop,dynamics,tidecorr */
     1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
     0,0,                        /* rovpos,refpos */
-    {300.0,300.0},        /* eratio[] */
+    {300.0},        /* eratio[] */
     {100.0,0.003,0.003,0.0,1.0,52.0,0.0,0.0}, /* err[-,base,el,bl,dop,snr_max,snr,rcverr] */
     {30.0,0.03,0.3},            /* std[] */
     {1E-4,1E-3,1E-4,1E-1,1E-2,0.0}, /* prn[] */
@@ -41,7 +41,7 @@ static const prcopt_t prcopt={ /* defaults processing options */
     {3.0,0.25,0.0,1E-9,1E-5,3.0,3.0,0.0}, /* thresar */
 	0.0,0.0,0.05,0,             /* elmaskar,elmaskhold,thresslip,thresdop, */
 	0.1,0.01,30.0,              /* varholdamb,gainholdamb,maxtdif */
-    {5.0,30.0},                 /* maxinno {phase,code} */
+    {30.0,60.0},                 /* maxinno {phase,code} */
     {0},{0},{0},                /* baseline,ru,rb */
     {"",""},                    /* anttype */
     {{0}},{{0}},{0},            /* antdel,pcv,exsats */
@@ -61,6 +61,7 @@ void AP_Periph_FW::rtklib_handle_rtcm_fragment(const uint8_t *data, uint16_t len
         return;
     }
     for (uint16_t i = 0; i < len; i++) {
+        rtcm_data->time = utc2gpst(timeget());
         input_rtcm3(rtcm_data, data[i]);
     }
 }
@@ -124,14 +125,32 @@ void AP_Periph_FW::rtklib_update()
             for (uint16_t i = 0; i < ubx_data->obs.n; i++) {
                 ubx_data->obs.data[i].rcv = 1; //rover
             }
+            for (uint8_t i = 0; i < rtcm_data->obs.n; i++) {
+                memcpy(&ubx_data->obs.data[ubx_data->obs.n + i], &rtcm_data->obs.data[i], sizeof(obsd_t));
+                ubx_data->obs.data[ubx_data->obs.n + i].rcv = 2; //base
+            }
             // feed in the data to rtkpos
-            rtkpos(rtk, ubx_data->obs.data, ubx_data->obs.n, &ubx_data->nav);
-            // can_printf("RTKLIB: %d\n", rtk->sol.stat);
+            rtkpos(rtk, ubx_data->obs.data, ubx_data->obs.n + rtcm_data->obs.n, &ubx_data->nav);
+            // free the data from ubx_data
+            for (uint16_t i = 0; i < rtcm_data->obs.n; i++) {
+                memset(&ubx_data->obs.data[ubx_data->obs.n + i], 0, sizeof(obsd_t));
+            }
+            can_printf("RTKLIB: %d RTCM_Obs[%d] UBX_Obs[%d]\n", rtk->sol.stat, rtcm_data->obs.n, ubx_data->obs.n);
             if (rtk->sol.stat) {
                 // convert solution to position
                 double pos[3];
                 ecef2pos(rtk->sol.rr, pos);
-                can_printf("RTKLIB Pos: %f %f %f\n", pos[0]*R2D, pos[1]*R2D, pos[2]);
+                // can_printf("RTKLIB Pos: %f %f %f\n", pos[0]*R2D, pos[1]*R2D, pos[2]);
+                // print relative position
+                can_printf("RelPos: %.3f %.3f %.3f\n", rtk->sol.rr[0] - rtk->rb[0], rtk->sol.rr[1] - rtk->rb[1], rtk->sol.rr[2] - rtk->rb[2]);
+                // print relative heading
+                double heading = atan2(rtk->sol.rr[1] - rtk->rb[1], rtk->sol.rr[0] - rtk->rb[0]);
+                can_printf("RelHeading: %.3f\n", heading*R2D);
+                // can_printf("ROVER Pos: %f %f %f\n", rtk->sol.rr[0], rtk->sol.rr[1], rtk->sol.rr[2]);
+                // can_printf("BASE Pos: %f %f %f\n", rtk->rb[0], rtk->rb[1], rtk->rb[2]);
+                // print relative heading
+                // double heading = atan2(rtk->sol.rr[1] - rtk->rb[1], rtk->sol.rr[0] - rtk->rb[0]);
+
             }
         }
     }
