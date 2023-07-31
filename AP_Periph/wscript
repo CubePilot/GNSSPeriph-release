@@ -100,7 +100,7 @@ def build(bld):
                         bld.srcnode.find_node('../RTKLIB/src/lambda.c'),],
                 includes=[bld.srcnode.find_dir('../RTKLIB/src'),],
                 # no error format
-                cflags=['-Wno-maybe-uninitialized','-Wno-unused-but-set-variable', '-Wno-error=format', '-Wno-unused-but-set-variable', '-Wno-float-equal', '-Wframe-larger-than=16384'],
+                cflags=['-Wno-unused-but-set-variable', '-Wno-error=format', '-Wno-float-equal', '-Wframe-larger-than=16384'],
                 target='rtklib')
 
     # build external libcanard library

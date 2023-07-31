@@ -19,6 +19,7 @@
 #include "AP_Periph.h"
 
 #include <dronecan_msgs.h>
+#include <stm32_util.h>
 #ifdef ENABLE_RTKLIB
 
 extern const AP_HAL::HAL &hal;
@@ -28,9 +29,9 @@ static const prcopt_t prcopt={ /* defaults processing options */
     PMODE_MOVEB, SOLTYPE_FORWARD, /* mode,soltype */
     1,SYS_GPS|SYS_GLO|SYS_GAL|SYS_QZS|SYS_CMP,  /* nf, navsys */
     15.0*D2R,{{0,0}},           /* elmin,snrmask */
-    0,3,3,1,0,1,                /* sateph,modear,glomodear,gpsmodear,bdsmodear,arfilter */
+    0,ARMODE_FIXHOLD,ARMODE_FIXHOLD,1,0,1,                /* sateph,modear,glomodear,gpsmodear,bdsmodear,arfilter */
     20,0,4,5,10,20,             /* maxout,minlock,minfixsats,minholdsats,mindropsats,minfix */
-    1,0,0,0,0,                  /* armaxiter,no-estion,no-esttrop,dynamics,tidecorr */
+    1,1,1,0,0,                  /* armaxiter,estion,esttrop,dynamics,tidecorr */
     1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
     0,0,                        /* rovpos,refpos */
     {300.0},        /* eratio[] */
@@ -41,8 +42,8 @@ static const prcopt_t prcopt={ /* defaults processing options */
     {3.0,0.25,0.0,1E-9,1E-5,3.0,3.0,0.0}, /* thresar */
 	0.0,0.0,0.05,0,             /* elmaskar,elmaskhold,thresslip,thresdop, */
 	0.1,0.01,30.0,              /* varholdamb,gainholdamb,maxtdif */
-    {30.0,60.0},                 /* maxinno {phase,code} */
-    {0},{0},{0},                /* baseline,ru,rb */
+    {10.0,30.0},                 /* maxinno {phase,code} */
+    {0.5, 0.1},{0},{0},          /* baseline,ru,rb */
     {"",""},                    /* anttype */
     {{0}},{{0}},{0},            /* antdel,pcv,exsats */
     1,1                         /* maxaveep,initrst */
@@ -120,8 +121,22 @@ void AP_Periph_FW::rtklib_update()
     }
 
     uint8_t byte;
+    uint16_t ubx_len;
+    // uint16_t ubx_offset=0;
     while (rtklib_raw_buffer->read_byte(&byte)) {
-        if (input_ubx(ubx_data, byte) > 0) {
+        ubx_len=input_ubx(ubx_data, byte);
+        if (ubx_len > 0) {
+            // if (dronecan) {
+            //     while (ubx_len) {
+            //         uint16_t copy_len = MIN(ubx_len, sizeof(test_rawdata.data.data));
+            //         memcpy(test_rawdata.data.data, ubx_data->buff + ubx_offset, copy_len);
+            //         test_rawdata.data.len = copy_len;
+            //         while (!dronecan->ubx_raw_pub.broadcast(test_rawdata)) {
+            //             dronecan->canard_iface.process(1);
+            //         }
+            //         ubx_len -= copy_len;
+            //     }
+            // }
             for (uint16_t i = 0; i < ubx_data->obs.n; i++) {
                 ubx_data->obs.data[i].rcv = 1; //rover
             }
@@ -135,7 +150,9 @@ void AP_Periph_FW::rtklib_update()
             for (uint16_t i = 0; i < rtcm_data->obs.n; i++) {
                 memset(&ubx_data->obs.data[ubx_data->obs.n + i], 0, sizeof(obsd_t));
             }
-            can_printf("RTKLIB: %d RTCM_Obs[%d] UBX_Obs[%d]\n", rtk->sol.stat, rtcm_data->obs.n, ubx_data->obs.n);
+            uint64_t rtcm_time_ms = rtcm_data->obs.data[0].time.time*1000 + rtcm_data->obs.data[0].time.sec*1000;
+            uint64_t ubx_time_ms = ubx_data->obs.data[0].time.time*1000 + ubx_data->obs.data[0].time.sec*1000;
+            can_printf("RTKLIB: %d [%lld][%d] [%lld][%d] Stack Free[%ld]\n", rtk->sol.stat, rtcm_time_ms, rtcm_data->obs.n, ubx_time_ms, ubx_data->obs.n, stack_free(&__main_thread_stack_base__));
             if (rtk->sol.stat) {
                 // convert solution to position
                 double pos[3];
@@ -150,7 +167,6 @@ void AP_Periph_FW::rtklib_update()
                 // can_printf("BASE Pos: %f %f %f\n", rtk->rb[0], rtk->rb[1], rtk->rb[2]);
                 // print relative heading
                 // double heading = atan2(rtk->sol.rr[1] - rtk->rb[1], rtk->sol.rr[0] - rtk->rb[0]);
-
             }
         }
     }

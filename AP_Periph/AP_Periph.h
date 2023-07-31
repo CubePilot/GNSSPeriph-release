@@ -237,6 +237,7 @@ public:
     void rtklib_init();
     void rtklib_update();
     void rtklib_handle_rtcm_fragment(const uint8_t *data, uint16_t len);
+    ardupilot_gnss_UBXRawData test_rawdata;
     raw_t *ubx_data;
     rtcm_t *rtcm_data;
     rtk_t *rtk;
@@ -274,6 +275,7 @@ public:
 
     void send_moving_baseline_msg();
     Canard::Publisher<ardupilot_gnss_MovingBaselineData> moving_baseline_pub{canard_iface};
+    Canard::Publisher<ardupilot_gnss_UBXRawData> ubx_raw_pub{canard_iface};
 
     void send_relposheading_msg();
     Canard::Publisher<ardupilot_gnss_RelPosHeading> relposheading_pub{canard_iface};

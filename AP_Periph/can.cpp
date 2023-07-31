@@ -55,7 +55,7 @@ extern const AP_HAL::HAL &hal;
 extern AP_Periph_FW periph;
 
 #ifndef HAL_CAN_POOL_SIZE
-#define HAL_CAN_POOL_SIZE 16384
+#define HAL_CAN_POOL_SIZE 32768
 #endif
 
 #ifndef HAL_PERIPH_LOOP_DELAY_US
@@ -628,6 +628,9 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     moving_baseline_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
     moving_baseline_pub.set_timeout_ms(50);
 
+    ubx_raw_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
+    ubx_raw_pub.set_timeout_ms(50);
+
     relposheading_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
     relposheading_pub.set_timeout_ms(50);
 
@@ -638,7 +641,7 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     static_temperature_pub.set_timeout_ms(20);
 
     log_pub.set_priority(CANARD_TRANSFER_PRIORITY_LOWEST);
-    log_pub.set_timeout_ms(10);
+    log_pub.set_timeout_ms(50);
 
     tunnel_pub.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
     tunnel_pub.set_timeout_ms(5);
