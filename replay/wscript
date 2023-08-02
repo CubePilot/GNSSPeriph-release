@@ -1,0 +1,92 @@
+#! /usr/bin/env python
+import sys
+sys.path.insert(0, '../ardupilot/Tools/ardupilotwaf/')
+import ardupilotwaf
+
+from waflib import Build, Context, Errors, Task, Utils
+from waflib.TaskGen import after_method, before_method, feature
+
+class CleanContext(Build.CleanContext):
+    def clean(self):
+        super(CleanContext, self).clean()
+
+def options(opt):
+    opt.load('compiler_cxx')
+    opt.load('compiler_c')
+    opt.parser.set_defaults(top='../ardupilot')
+
+def configure(cfg):
+    cfg.load('python')
+    cfg.load('compiler_cxx')
+    cfg.load('compiler_c')
+    cfg.load('dronecangen')
+    cfg.env.CFLAGS += [
+            '-g',
+            '-ffunction-sections',
+            '-fdata-sections',
+            '-fsigned-char']
+    cfg.env.CXXFLAGS += cfg.env.CFLAGS + [
+                        '-fcheck-new',
+                        '-fno-exceptions']
+    cfg.env.LINKFLAGS += ['-fno-exceptions',
+                          '-Wl,--gc-sections',]
+
+
+@before_method('process_source')
+@feature('cxxstlib', 'cxxprogram')
+def dynamic_post(self):
+    if not getattr(self, 'dynamic_source', None):
+        return
+    self.source = Utils.to_list(self.source)
+    self.source.extend(self.bld.bldnode.ant_glob(self.dynamic_source))
+
+def build(bld):
+    bld.env.DEFINES += ['CANARD_INTERNAL=','ENABLE_RTKLIB', 'INHIBIT_RTK_LOCK_MACROS', 'NO_THREADS_API', 'INHIBIT_RTK_LOCK_MACROS', 'NO_FS_PLATFORM', 'NOCALLOC=1', 'CUSTOM_TIME_API', 'ENAGLO', 'ENAQZS', 'ENAGAL', 'ENACMP']
+    bld.env.DEFINES += ['DRONECAN_CXX_WRAPPERS=1']
+    bld.add_group('dynamic_sources')
+    bld(
+        features='dronecangen',
+        source=bld.srcnode.ant_glob('modules/DroneCAN/DSDL/* ardupilot/libraries/AP_UAVCAN/dsdl/*', dir=True, src=False),
+        output_dir='modules/DroneCAN/libcanard/dsdlc_generated',
+        name='dronecan',
+        export_includes=[
+        bld.bldnode.make_node('modules/DroneCAN/libcanard/dsdlc_generated/include').abspath(),
+        bld.srcnode.find_dir('modules/DroneCAN/libcanard').abspath()
+        ]
+    )
+    bld.add_group('build')
+    bld.stlib(source=[bld.srcnode.find_node('../RTKLIB/src/rtkpos.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/rtkcmn.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/rcv/ublox.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/rtcm.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/rtcm3.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/rcvraw.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/pntpos.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/ppp.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/ppp_ar.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/solution.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/tides.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/ephemeris.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/ionex.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/preceph.c'),
+                    bld.srcnode.find_node('../RTKLIB/src/lambda.c'),],
+            includes=[bld.srcnode.find_dir('../RTKLIB/src'),],
+            export_includes=[bld.srcnode.find_dir('../RTKLIB/src'),],
+            # no error format
+            cflags=['-Wno-unused-but-set-variable', '-Wno-error=format', '-Wno-float-equal', '-Wframe-larger-than=16384'],
+            target='rtklib')
+
+    bld.stlib(source=[bld.srcnode.find_node('modules/DroneCAN/libcanard/canard.c')],
+              features='cxxstlib',
+              includes=[bld.srcnode.find_dir('modules/DroneCAN/libcanard').abspath(), 
+                        bld.bldnode.make_node('modules/DroneCAN/libcanard/dsdlc_generated/include').abspath()],
+              use=['dronecan'],
+              target='libcanard')
+
+    bld.program(source=[bld.srcnode.find_node('../replay/main.cpp')],
+        features='cxx cxxprogram',
+        use=['dronecan', 'libcanard', 'rtklib'],
+        dynamic_source='modules/DroneCAN/libcanard/dsdlc_generated/src/**.c',
+        cxxflags=['-std=c++11'],
+        target='replay',
+        install_path=bld.srcnode.find_dir('../replay'))
