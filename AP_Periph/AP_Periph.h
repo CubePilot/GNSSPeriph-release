@@ -238,6 +238,7 @@ public:
     void rtklib_update();
     void rtklib_handle_rtcm_fragment(const uint8_t *data, uint16_t len);
     ardupilot_gnss_UBXRawData test_rawdata;
+    uint16_t test_rawdata_offset;
     raw_t *ubx_data;
     rtcm_t *rtcm_data;
     rtk_t *rtk;

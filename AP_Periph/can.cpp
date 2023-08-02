@@ -628,7 +628,7 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     moving_baseline_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
     moving_baseline_pub.set_timeout_ms(50);
 
-    ubx_raw_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
+    ubx_raw_pub.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
     ubx_raw_pub.set_timeout_ms(50);
 
     relposheading_pub.set_priority(CANARD_TRANSFER_PRIORITY_MEDIUM);
