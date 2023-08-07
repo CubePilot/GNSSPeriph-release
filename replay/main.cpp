@@ -51,6 +51,8 @@ DEFINE_HANDLER_LIST_HEADS();
 
 DEFINE_TRANSFER_OBJECT_HEADS();
 
+#define sq(x) ((x)*(x))
+
 class CanardInterface : public Canard::Interface {
 public:
     CanardInterface(uint8_t iface_index) :
@@ -238,6 +240,22 @@ static void handle_UBXRawData(const CanardRxTransfer& transfer, const ardupilot_
     }
 }
 
+static void soltocov(const sol_t *sol, double *P)
+{
+    P[0]     =sol->qr[0]; /* xx or ee */
+    P[4]     =sol->qr[1]; /* yy or nn */
+    P[8]     =sol->qr[2]; /* zz or uu */
+    P[1]=P[3]=sol->qr[3]; /* xy or en */
+    P[5]=P[7]=sol->qr[4]; /* yz or nu */
+    P[2]=P[6]=sol->qr[5]; /* zx or ue */
+}
+
+/* sqrt of covariance --------------------------------------------------------*/
+static double sqvar(double covar)
+{
+    return covar<0.0?-sqrt(-covar):sqrt(covar);
+}
+
 static void do_rtkpos() {
     sortobs(&ubx_data.obs);
     sortobs(&rtcm_data.obs);
@@ -259,9 +277,9 @@ static void do_rtkpos() {
     uint64_t ubx_time_ms = ubx_data.obs.data[0].time.time*1000 + ubx_data.obs.data[0].time.sec*1000;
     printf("RTKLIB: %d [%lld][%d] [%lld][%d]\n", rtk.sol.stat, rtcm_time_ms, rtcm_data.obs.n, ubx_time_ms, ubx_data.obs.n);
     printf("RTKLIB: %d AR: %f/%f\n", rtk.sol.stat, (float)rtk.sol.ratio, rtk.opt.thresar[0]);
-    if (rtk.sol.stat) {
-        // convert solution to position
+    if (rtk.sol.stat == 1) {
         double pos[3], diff_pos[3];
+        double P[9],Q[9];
         ecef2pos(rtk.sol.rr, pos);
         // can_printf("RTKLIB Pos: %f %f %f\n", pos[0]*R2D, pos[1]*R2D, pos[2]);
         // print relative position
@@ -270,14 +288,17 @@ static void do_rtkpos() {
         diff_pos[0] = rtk.sol.rr[0] - rtk.rb[0];
         diff_pos[1] = rtk.sol.rr[1] - rtk.rb[1];
         diff_pos[2] = rtk.sol.rr[2] - rtk.rb[2];
+        soltocov(&rtk.sol,P);
+        covenu(pos,P,Q);
         double relpos[3];
         ecef2enu(pos, diff_pos, relpos);
-        double heading = atan2(relpos[1], relpos[0]);
-        printf("RelPos: %.3f %.3f %.3f RelHeading: %.3f\n", relpos[0], relpos[1], relpos[2], heading*R2D);
-        // can_printf("ROVER Pos: %f %f %f\n", rtk.sol.rr[0], rtk.sol.rr[1], rtk.sol.rr[2]);
-        // can_printf("BASE Pos: %f %f %f\n", rtk.rb[0], rtk.rb[1], rtk.rb[2]);
-        // print relative heading
-        // double heading = atan2(rtk.sol.rr[1] - rtk.rb[1], rtk.sol.rr[0] - rtk.rb[0]);
+        float relPosLength = sqrt(sq(relpos[0]) + sq(relpos[1]));
+        float relPosD = relpos[2];
+        float relPosHeading = atan2(relpos[0], relpos[1]);
+        // accuracy is calculated using std deviation of N and E and NE vector length 
+        float relPosAccHeading = atan2(sqvar(Q[0] + Q[4]), relPosLength - sqvar(Q[1]));
+        // relPosTimestamp = rtk.sol.time.time*1000 + rtk.sol.time.sec*1000;
+        printf("---> Time: %.3f RelPosLength: %.3f  RelHeading: %.3f Accuracy: %.3f\n", rtk.sol.time.time%1000 + rtk.sol.time.sec, relPosLength, relPosHeading*R2D, relPosAccHeading*R2D);
     }
 }
 
