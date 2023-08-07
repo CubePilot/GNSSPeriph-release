@@ -125,6 +125,22 @@ bool CanardInterface::respond(uint8_t destination_node_id, const Canard::Transfe
     return true;
 }
 
+static raw_t ubx_data;
+static rtcm_t rtcm_data;
+static rtk_t rtk;
+static void handle_MovingBaselineData(const CanardRxTransfer& transfer, const ardupilot_gnss_MovingBaselineData &msg);
+static Canard::StaticCallback<ardupilot_gnss_MovingBaselineData> MovingBaselineData_callback{&handle_MovingBaselineData};
+static Canard::Subscriber<ardupilot_gnss_MovingBaselineData> MovingBaselineData_sub{MovingBaselineData_callback, 0};
+static void handle_UBXRawData(const CanardRxTransfer& transfer, const ardupilot_gnss_UBXRawData &msg);
+static Canard::StaticCallback<ardupilot_gnss_UBXRawData> UBXRawData_callback{&handle_UBXRawData};
+static Canard::Subscriber<ardupilot_gnss_UBXRawData> UBXRawData_sub{UBXRawData_callback, 0};
+static void handle_GPSFix2(const CanardRxTransfer& transfer, const uavcan_equipment_gnss_Fix2 &msg);
+static Canard::StaticCallback<uavcan_equipment_gnss_Fix2> GPSFix2_callback{&handle_GPSFix2};
+static Canard::Subscriber<uavcan_equipment_gnss_Fix2> GPSFix2_sub{GPSFix2_callback, 0};
+static void do_rtkpos();
+static bool new_rtcm_msg = false;
+static bool new_ubx_msg = false;
+
 // Frame format in binary
 //   - MAGIC 0x2934 16 bit
 //    - 64 bit monotonic timestamp (microseconds)
@@ -159,22 +175,29 @@ void CanardInterface::run() {
         }
         // send the frame
         int rxret = canardHandleRxFrame(&canard, &frame, frame_header.timestamp);
+        int64_t rtcm_time_ms = rtcm_data.obs.data[0].time.time*1000 + rtcm_data.obs.data[0].time.sec*1000;
+        int64_t ubx_time_ms = ubx_data.obs.data[0].time.time*1000 + ubx_data.obs.data[0].time.sec*1000;
+        int32_t delta = rtcm_time_ms-ubx_time_ms;
+        // fprintf(stdout, "rtcm_time_ms=%ld, ubx_time_ms=%ld delta=%d\n", rtcm_time_ms, ubx_time_ms, abs(delta));
+        if (new_ubx_msg && new_rtcm_msg) {
+            if (abs(delta) < 50) {
+                do_rtkpos();
+                new_ubx_msg = false;
+                ubx_data.obs.n = 0;
+                rtcm_data.obs.n = 0;
+                new_rtcm_msg = false;
+            }
+            if (delta > 0) {
+                new_ubx_msg = false;
+                ubx_data.obs.n = 0;
+            }
+            if (delta < 0) {
+                rtcm_data.obs.n = 0;
+                new_rtcm_msg = false;
+            }
+        }
     }
 }
-
-static raw_t ubx_data;
-static rtcm_t rtcm_data;
-static rtk_t rtk;
-static void handle_MovingBaselineData(const CanardRxTransfer& transfer, const ardupilot_gnss_MovingBaselineData &msg);
-static Canard::StaticCallback<ardupilot_gnss_MovingBaselineData> MovingBaselineData_callback{&handle_MovingBaselineData};
-static Canard::Subscriber<ardupilot_gnss_MovingBaselineData> MovingBaselineData_sub{MovingBaselineData_callback, 0};
-static void handle_UBXRawData(const CanardRxTransfer& transfer, const ardupilot_gnss_UBXRawData &msg);
-static Canard::StaticCallback<ardupilot_gnss_UBXRawData> UBXRawData_callback{&handle_UBXRawData};
-static Canard::Subscriber<ardupilot_gnss_UBXRawData> UBXRawData_sub{UBXRawData_callback, 0};
-static void handle_GPSFix2(const CanardRxTransfer& transfer, const uavcan_equipment_gnss_Fix2 &msg);
-static Canard::StaticCallback<uavcan_equipment_gnss_Fix2> GPSFix2_callback{&handle_GPSFix2};
-static Canard::Subscriber<uavcan_equipment_gnss_Fix2> GPSFix2_sub{GPSFix2_callback, 0};
-
 
 uint64_t curr_time;
 gtime_t get_curr_time() {
@@ -192,56 +215,69 @@ static void handle_GPSFix2(const CanardRxTransfer& transfer, const uavcan_equipm
 }
 
 static void handle_MovingBaselineData(const CanardRxTransfer& transfer, const ardupilot_gnss_MovingBaselineData &msg) {
+    if (msg.data.len < 20) {
+        return;
+    }
     for (uint16_t i=0; i<msg.data.len; i++) {
         rtcm_data.time = utc2gpst(timeget());
-        input_rtcm3(&rtcm_data, msg.data.data[i]);
+        if (input_rtcm3(&rtcm_data, msg.data.data[i])) {
+            if (rtcm_data.obs.n > 4) {
+                new_rtcm_msg = true;
+            }
+        }
     }
 }
 
 static void handle_UBXRawData(const CanardRxTransfer& transfer, const ardupilot_gnss_UBXRawData &msg) {
     for (uint16_t i=0; i<msg.data.len; i++) {
         if (input_ubx(&ubx_data, msg.data.data[i])) {
-            sortobs(&ubx_data.obs);
-            sortobs(&rtcm_data.obs);
-
-            for (uint16_t i = 0; i < ubx_data.obs.n; i++) {
-                ubx_data.obs.data[i].rcv = 1; //rover
-            }
-            for (uint8_t i = 0; i < rtcm_data.obs.n; i++) {
-                memcpy(&ubx_data.obs.data[ubx_data.obs.n + i], &rtcm_data.obs.data[i], sizeof(obsd_t));
-                ubx_data.obs.data[ubx_data.obs.n + i].rcv = 2; //base
-            }
-            // feed in the data to rtkpos
-            rtkpos(&rtk, ubx_data.obs.data, ubx_data.obs.n + rtcm_data.obs.n, &ubx_data.nav);
-            // free the data from ubx_data
-            for (uint16_t i = 0; i < rtcm_data.obs.n; i++) {
-                memset(&ubx_data.obs.data[ubx_data.obs.n + i], 0, sizeof(obsd_t));
-            }
-            uint64_t rtcm_time_ms = rtcm_data.obs.data[0].time.time*1000 + rtcm_data.obs.data[0].time.sec*1000;
-            uint64_t ubx_time_ms = ubx_data.obs.data[0].time.time*1000 + ubx_data.obs.data[0].time.sec*1000;
-            printf("RTKLIB: %d [%lld][%d] [%lld][%d]\n", rtk.sol.stat, rtcm_time_ms, rtcm_data.obs.n, ubx_time_ms, ubx_data.obs.n);
-            printf("RTKLIB: %d AR: %f/%f\n", rtk.sol.stat, (float)rtk.sol.ratio, rtk.opt.thresar[0]);
-            if (rtk.sol.stat) {
-                // convert solution to position
-                double pos[3], diff_pos[3];
-                ecef2pos(rtk.sol.rr, pos);
-                // can_printf("RTKLIB Pos: %f %f %f\n", pos[0]*R2D, pos[1]*R2D, pos[2]);
-                // print relative position
-                // printf("RelPos: %.3f %.3f %.3f\n", rtk.sol.rr[0] - rtk.rb[0], rtk.sol.rr[1] - rtk.rb[1], rtk.sol.rr[2] - rtk.rb[2]);
-                // print relative heading
-                diff_pos[0] = rtk.sol.rr[0] - rtk.rb[0];
-                diff_pos[1] = rtk.sol.rr[1] - rtk.rb[1];
-                diff_pos[2] = rtk.sol.rr[2] - rtk.rb[2];
-                double relpos[3];
-                ecef2enu(pos, diff_pos, relpos);
-                double heading = atan2(relpos[1], relpos[0]);
-                printf("RelPos: %.3f %.3f %.3f RelHeading: %.3f\n", relpos[0], relpos[1], relpos[2], heading*R2D);
-                // can_printf("ROVER Pos: %f %f %f\n", rtk.sol.rr[0], rtk.sol.rr[1], rtk.sol.rr[2]);
-                // can_printf("BASE Pos: %f %f %f\n", rtk.rb[0], rtk.rb[1], rtk.rb[2]);
-                // print relative heading
-                // double heading = atan2(rtk.sol.rr[1] - rtk.rb[1], rtk.sol.rr[0] - rtk.rb[0]);
+            if (ubx_data.obs.n > 4) {
+                new_ubx_msg = true;
             }
         }
+    }
+}
+
+static void do_rtkpos() {
+    sortobs(&ubx_data.obs);
+    sortobs(&rtcm_data.obs);
+
+    for (uint16_t i = 0; i < ubx_data.obs.n; i++) {
+        ubx_data.obs.data[i].rcv = 1; //rover
+    }
+    for (uint8_t i = 0; i < rtcm_data.obs.n; i++) {
+        memcpy(&ubx_data.obs.data[ubx_data.obs.n + i], &rtcm_data.obs.data[i], sizeof(obsd_t));
+        ubx_data.obs.data[ubx_data.obs.n + i].rcv = 2; //base
+    }
+    // feed in the data to rtkpos
+    rtkpos(&rtk, ubx_data.obs.data, ubx_data.obs.n + rtcm_data.obs.n, &ubx_data.nav);
+    // free the data from ubx_data
+    for (uint16_t i = 0; i < rtcm_data.obs.n; i++) {
+        memset(&ubx_data.obs.data[ubx_data.obs.n + i], 0, sizeof(obsd_t));
+    }
+    uint64_t rtcm_time_ms = rtcm_data.obs.data[0].time.time*1000 + rtcm_data.obs.data[0].time.sec*1000;
+    uint64_t ubx_time_ms = ubx_data.obs.data[0].time.time*1000 + ubx_data.obs.data[0].time.sec*1000;
+    printf("RTKLIB: %d [%lld][%d] [%lld][%d]\n", rtk.sol.stat, rtcm_time_ms, rtcm_data.obs.n, ubx_time_ms, ubx_data.obs.n);
+    printf("RTKLIB: %d AR: %f/%f\n", rtk.sol.stat, (float)rtk.sol.ratio, rtk.opt.thresar[0]);
+    if (rtk.sol.stat) {
+        // convert solution to position
+        double pos[3], diff_pos[3];
+        ecef2pos(rtk.sol.rr, pos);
+        // can_printf("RTKLIB Pos: %f %f %f\n", pos[0]*R2D, pos[1]*R2D, pos[2]);
+        // print relative position
+        // printf("RelPos: %.3f %.3f %.3f\n", rtk.sol.rr[0] - rtk.rb[0], rtk.sol.rr[1] - rtk.rb[1], rtk.sol.rr[2] - rtk.rb[2]);
+        // print relative heading
+        diff_pos[0] = rtk.sol.rr[0] - rtk.rb[0];
+        diff_pos[1] = rtk.sol.rr[1] - rtk.rb[1];
+        diff_pos[2] = rtk.sol.rr[2] - rtk.rb[2];
+        double relpos[3];
+        ecef2enu(pos, diff_pos, relpos);
+        double heading = atan2(relpos[1], relpos[0]);
+        printf("RelPos: %.3f %.3f %.3f RelHeading: %.3f\n", relpos[0], relpos[1], relpos[2], heading*R2D);
+        // can_printf("ROVER Pos: %f %f %f\n", rtk.sol.rr[0], rtk.sol.rr[1], rtk.sol.rr[2]);
+        // can_printf("BASE Pos: %f %f %f\n", rtk.rb[0], rtk.rb[1], rtk.rb[2]);
+        // print relative heading
+        // double heading = atan2(rtk.sol.rr[1] - rtk.rb[1], rtk.sol.rr[0] - rtk.rb[0]);
     }
 }
 
@@ -251,18 +287,18 @@ static const prcopt_t prcopt={ /* defaults processing options */
     PMODE_MOVEB, SOLTYPE_FORWARD, /* mode,soltype */
     1,SYS_GPS|SYS_GLO|SYS_GAL|SYS_QZS|SYS_CMP,  /* nf, navsys */
     15.0*D2R,{{0,0}},           /* elmin,snrmask */
-    0,ARMODE_FIXHOLD,ARMODE_CONT,1,ARMODE_CONT,1,                /* sateph,modear,glomodear,gpsmodear,bdsmodear,arfilter */
-    100,0,4,5,10,100,             /* maxout,minlock,minfixsats,minholdsats,mindropsats,minfix */
+    0,ARMODE_FIXHOLD,ARMODE_FIXHOLD,1,ARMODE_CONT,1,                /* sateph,modear,glomodear,gpsmodear,bdsmodear,arfilter */
+    100,5,4,5,10,100,             /* maxout,minlock,minfixsats,minholdsats,mindropsats,minfix */
     4,1,1,0,0,                  /* armaxiter,estion,esttrop,dynamics,tidecorr */
     1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
     0,0,                        /* rovpos,refpos */
-    {300.0, 100.0},        /* eratio[] */
+    {300.0, 100.0},             /* eratio[] */
     {100.0,0.003,0.003,0.0,1.0,52.0,0.0,0.0}, /* err[-,base,el,bl,dop,snr_max,snr,rcverr] */
     {30.0,0.03,0.3},            /* std[] */
     {1E-4,1E-3,1E-4,1E-1,1E-2,0.0}, /* prn[] */
     5E-12,                      /* sclkstab */
     {3.0,0.04,0.0,1E-9,1E-5,3.0,3.0,0.0}, /* thresar */
-	15.0*D2R,0.0,0.05,0,             /* elmaskar,elmaskhold,thresslip,thresdop, */
+	20.0*D2R,0.0,0.05,0,             /* elmaskar,elmaskhold,thresslip,thresdop, */
 	0.1,0.01,0.5,              /* varholdamb,gainholdamb,maxtdif */
     {3000.0,30.0},                 /* maxinno {phase,code} */
     {0},{0},{0},                /* baseline,ru,rb */
