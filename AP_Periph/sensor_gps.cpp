@@ -146,35 +146,50 @@ void AP_Periph_DroneCAN::send_moving_baseline_msg()
 #if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
     auto &gps = periph.gps;
     const uint8_t *data = nullptr;
-    uint16_t len = 0;
+    uint16_t len = 0, offset = 0;
     if (!gps.get_RTCMV3(data, len)) {
         return;
     }
     if (len == 0 || data == nullptr) {
         return;
     }
-    // send the packet from Moving Base to be used RelPosHeading calc by GPS module
-    ardupilot_gnss_MovingBaselineData mbldata {};
-    // get the data from the moving base
-    static_assert(sizeof(ardupilot_gnss_MovingBaselineData::data.data) == RTCM3_MAX_PACKET_LEN, "Size of Moving Base data is wrong");
-    mbldata.data.len = len;
-    memcpy(mbldata.data.data, data, len);
+    if (len > sizeof(ardupilot_gnss_MovingBaselineData::data.data)) {
+        can_printf("RTCM3 packet large (%u bytes)\n", len);
+    }
+    while (len) {
+        // send the packet from Moving Base to be used RelPosHeading calc by GPS module
+        ardupilot_gnss_MovingBaselineData mbldata {};
+        // get the data from the moving base
+        // static_assert(sizeof(ardupilot_gnss_MovingBaselineData::data.data) == RTCM3_MAX_PACKET_LEN, "Size of Moving Base data is wrong");
+        mbldata.data.len = MIN(sizeof(mbldata.data.data), len);
+        memcpy(mbldata.data.data, &data[offset], mbldata.data.len);
 
-    moving_baseline_pub.broadcast(mbldata);
+        if (moving_baseline_pub.broadcast(mbldata)) {
+            len -= mbldata.data.len;
+            offset += mbldata.data.len;
+        } else {
+            // free some space
+            canard_iface.process(1);
+        }
+    }
     gps.clear_RTCMV3();
 #endif // HAL_PERIPH_ENABLE_GPS && GPS_MOVING_BASELINE
 }
 
 void AP_Periph_DroneCAN::send_relposheading_msg() {
 #if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
-    auto &gps = periph.gps;
     float reported_heading;
     float relative_distance;
     float relative_down_pos;
     float reported_heading_acc;
-    static uint32_t last_timestamp = 0;
-    uint32_t curr_timestamp = 0;
+    static uint64_t last_timestamp = 0;
+    uint64_t curr_timestamp = 0;
+#ifdef ENABLE_RTKLIB
+    periph.get_RelPosHeading(curr_timestamp, reported_heading, relative_distance, relative_down_pos, reported_heading_acc);
+#else
+    auto &gps = periph.gps;
     gps.get_RelPosHeading(curr_timestamp, reported_heading, relative_distance, relative_down_pos, reported_heading_acc);
+#endif
     if (last_timestamp == curr_timestamp) {
         return;
     }

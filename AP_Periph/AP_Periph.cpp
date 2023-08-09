@@ -78,10 +78,6 @@ void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t ti
 #endif
 void AP_Periph_FW::init()
 {
-#ifdef ENABLE_RTKLIB
-    rtklib_init();
-#endif
-
     // always run with watchdog enabled. This should have already been
     // setup by the bootloader, but if not then enable now
 #ifndef DISABLE_WATCHDOG
@@ -152,6 +148,9 @@ void AP_Periph_FW::init()
 
     if (gps.get_type(0) != AP_GPS::GPS_Type::GPS_TYPE_NONE && enable_gps) {
         gps.init(serial_manager);
+#ifdef ENABLE_RTKLIB
+        rtklib_init();
+#endif
     } else {
 #ifdef GPIO_USART1_RX
         // setup gpio passthrough

@@ -244,6 +244,22 @@ public:
     rtk_t *rtk;
     bool rtklib_initialised;
     AP_RTC rtc;
+    bool new_ubx_obs;
+    bool new_rtcm_obs;
+    uint64_t last_ubx_obs_time;
+    uint64_t last_rtcm_obs_time;
+    uint64_t relPosTimestamp;
+    float relPosHeading;
+    float relPosLength;
+    float relPosD;
+    float relPosAccHeading;
+    void get_RelPosHeading(uint64_t &timestamp, float &heading, float &length, float &posD, float &accHeading) {
+        timestamp = relPosTimestamp;
+        heading = relPosHeading;
+        length = relPosLength;
+        posD = relPosD;
+        accHeading = relPosAccHeading;
+    }
 #endif
 };
 
