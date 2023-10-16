@@ -95,13 +95,11 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @User: Advanced
     GSCALAR(serial_number, "BRD_SERIAL_NUM", 0),
 
-#ifdef HAL_PERIPH_ENABLE_GPS
     // GPS driver
     // @Group: GPS
     // @Path: ../libraries/AP_GPS/AP_GPS.cpp
     GOBJECT(gps, "GPS", AP_GPS),
 
-#endif
 
 #ifdef HAL_PERIPH_ENABLE_MAG
     // @Group: COMPASS_

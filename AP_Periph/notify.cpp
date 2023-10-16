@@ -62,7 +62,7 @@ void AP_Periph_FW::update_rainbow()
     if (led_cmd_override) {
         return;
     }
-    uint32_t now = AP_HAL::native_millis();
+    uint32_t now = AP_HAL::millis();
 
     static uint32_t last_update_ms;
     const uint8_t step_ms = 100;

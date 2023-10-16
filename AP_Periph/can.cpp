@@ -152,7 +152,7 @@ void AP_Periph_DroneCAN::handle_get_node_info(const CanardRxTransfer& transfer, 
 {
     uavcan_protocol_GetNodeInfoResponse pkt {};
 
-    node_status.uptime_sec = AP_HAL::native_millis() / 1000U;
+    node_status.uptime_sec = AP_HAL::millis() / 1000U;
 
     pkt.status = node_status;
     pkt.software_version.major = AP::fwversion().major;
@@ -329,7 +329,7 @@ void AP_Periph_DroneCAN::handle_allocation_response(const CanardRxTransfer& tran
 {
     // Rule C - updating the randomized time interval
     periph.send_next_node_id_allocation_request_at_ms =
-        AP_HAL::native_millis() + UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_MIN_REQUEST_PERIOD_MS +
+        AP_HAL::millis() + UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_MIN_REQUEST_PERIOD_MS +
         get_random_range(UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_MAX_FOLLOWUP_DELAY_MS);
 
     if (transfer.source_node_id == CANARD_BROADCAST_NODE_ID)
@@ -482,7 +482,7 @@ static void process1HzTasks(uint64_t timestamp_usec)
 
     node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_OPERATIONAL;
 
-    if (AP_HAL::native_millis() > 30000) {
+    if (AP_HAL::millis() > 30000) {
         // use RTC to mark that we have been running fine for
         // 30s. This is used along with watchdog resets to ensure the
         // user has a chance to load a fixed firmware
@@ -501,7 +501,7 @@ bool AP_Periph_FW::can_do_dna()
         return true;
     }
 
-    const uint32_t now = AP_HAL::native_millis();
+    const uint32_t now = AP_HAL::millis();
 
     if (AP_Periph_FW::no_iface_finished_dna) {
         printf("Waiting for dynamic node ID allocation... (pool %u)\n", periph.dronecan->canard_iface.pool_peak_percent());
@@ -545,7 +545,7 @@ void AP_Periph_FW::can_start()
 {
     node_status.health = UAVCAN_PROTOCOL_NODESTATUS_HEALTH_OK;
     node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_INITIALIZATION;
-    node_status.uptime_sec = AP_HAL::native_millis() / 1000U;
+    node_status.uptime_sec = AP_HAL::millis() / 1000U;
 
     if (g.can_node >= 0 && g.can_node < 128) {
         PreferredNodeID = g.can_node;
@@ -651,7 +651,7 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
 
 void AP_Periph_FW::can_update()
 {
-    const uint32_t now = AP_HAL::native_millis();
+    const uint32_t now = AP_HAL::millis();
 
     if (AP_HAL::millis() > send_next_node_id_allocation_request_at_ms) {
         can_do_dna();
@@ -661,7 +661,7 @@ void AP_Periph_FW::can_update()
         static uint32_t last_1Hz_ms;
         if (now - last_1Hz_ms >= 1000) {
             last_1Hz_ms = now;
-            process1HzTasks(AP_HAL::native_micros64());
+            process1HzTasks(AP_HAL::micros64());
         }
 
         bool enable_gps = true;

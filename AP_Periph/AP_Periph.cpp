@@ -196,7 +196,7 @@ void AP_Periph_FW::init()
 #if AP_SCRIPTING_ENABLED
     scripting.init();
 #endif
-    start_ms = AP_HAL::native_millis();
+    start_ms = AP_HAL::millis();
 }
 
 
@@ -247,7 +247,7 @@ void AP_Periph_FW::update()
     SRV_Channels::enable_aux_servos();
 
     static uint32_t last_led_ms;
-    uint32_t now = AP_HAL::native_millis();
+    uint32_t now = AP_HAL::millis();
     if (now - last_led_ms > 1000) {
         last_led_ms = now;
 #ifdef HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT
