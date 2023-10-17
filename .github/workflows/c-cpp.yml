@@ -116,6 +116,14 @@ jobs:
         cp build/HerePro/bin/AP_Periph.bin release/HerePro_FW.bin
         cp build/HerePro/bin/AP_Periph_with_bl.hex release/HerePro_FW_with_bl.hex
         cp build/HerePro/bin/AP_Periph release/HerePro_FW.elf
+    - name: configure
+      run: ./waf configure --board HereProAlpha -g
+    - name: build
+      run: ./waf AP_Periph
+    - name: copy HereProAlpha files to release
+      run: |
+        cp build/HereProAlpha/bin/AP_Periph.bin release/HereProAlpha_FW.bin
+        cp build/HereProAlpha/bin/AP_Periph release/HereProAlpha_FW.elf
     - name: package release
       run: |
         cd release
