@@ -153,7 +153,7 @@ public:
         }
     }
 
-#if HAL_INS_ENABLED
+#if AP_INERTIALSENSOR_ENABLED
     AP_InertialSensor imu;
 #endif
 

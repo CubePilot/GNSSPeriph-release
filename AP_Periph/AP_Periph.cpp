@@ -138,7 +138,7 @@ void AP_Periph_FW::init()
         printf("Reboot after watchdog reset\n");
     }
 
-#if HAL_INS_ENABLED
+#if AP_INERTIALSENSOR_ENABLED
     imu.init(1000);
 #endif
 
