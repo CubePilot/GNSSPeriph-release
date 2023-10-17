@@ -96,7 +96,7 @@ public:
     AP_Int8 can_terminator[HAL_NUM_CAN_IFACES];
     AP_Int8 node_stats;
     AP_Int8 cubeid_fw_update_enabled;
-
+    AP_Int8 gps_mb_only_can_port;
     Parameters() {}
 };
 

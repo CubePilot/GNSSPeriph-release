@@ -173,6 +173,16 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GOBJECT(gps_base, "B",  GPS_Base),
 #endif
 
+#if GPS_MOVING_BASELINE // TODO
+    // @Param: MB_CAN_PORT
+    // @DisplayName: Moving Baseline CAN Port option
+    // @Description: Autoselect dedicated CAN port on which moving baseline data will be transmitted.
+    // @Values: 0:Sends moving baseline data on all ports, other options not available
+    // @User: Advanced
+    // @RebootRequired: True
+    GSCALAR(gps_mb_only_can_port, "GPS_MB_ONLY_PORT", 0),
+#endif
+
     AP_VAREND
 };
 
