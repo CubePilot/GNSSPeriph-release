@@ -21,7 +21,7 @@ def build(bld):
     if bld.env.BOOTLOADER:
         return
 
-    targets = ['HerePro', 'Here3+', 'Here4']
+    targets = ['HerePro', 'Here3+', 'Here4', 'HereProAlpha']
     valid_target = False
     for t in targets:
         if fnmatch.fnmatch(bld.env.BOARD, t):
