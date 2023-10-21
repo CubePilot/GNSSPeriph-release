@@ -35,6 +35,7 @@
 #if EXT_FLASH_SIZE_MB
 #include <AP_FlashIface/AP_FlashIface_JEDEC.h>
 #endif
+#include <AP_CheckFirmware/AP_CheckFirmware.h>
 
 extern "C" {
     int main(void);
@@ -80,7 +81,11 @@ int main(void)
     AFIO->MAPR = mapr | AFIO_MAPR_CAN_REMAP_REMAP2 | AFIO_MAPR_SPI3_REMAP;
 #endif
 
-#ifndef NO_FASTBOOT
+#if HAL_FLASH_PROTECTION
+    stm32_flash_unprotect_flash();
+#endif
+
+#if AP_FASTBOOT_ENABLED
     enum rtc_boot_magic m = check_fast_reboot();
     bool was_watchdog = stm32_was_watchdog_reset();
     if (was_watchdog) {
@@ -103,7 +108,8 @@ int main(void)
         try_boot = false;
         timeout = 0;
     }
-    if (!can_check_firmware()) {
+    const auto ok = check_good_firmware();
+    if (ok != check_fw_result_t::CHECK_FW_OK) {
         // bad firmware CRC, don't try and boot
         timeout = 0;
         try_boot = false;
@@ -123,7 +129,15 @@ int main(void)
         try_boot = false;
         timeout = 0;
     }
+#elif AP_CHECK_FIRMWARE_ENABLED
+    const auto ok = check_good_firmware();
+    if (ok != check_fw_result_t::CHECK_FW_OK) {
+        // bad firmware, don't try and boot
+        timeout = 0;
+        try_boot = false;
+    }
 #endif
+
 #if defined(HAL_GPIO_PIN_VBUS) && defined(HAL_ENABLE_VBUS_CHECK)
 #if HAL_USE_SERIAL_USB == TRUE
     else if (palReadLine(HAL_GPIO_PIN_VBUS) == 0)  {
@@ -136,7 +150,7 @@ int main(void)
     // if we fail to boot properly we want to pause in bootloader to give
     // a chance to load new app code
     set_fast_reboot(RTC_BOOT_OFF);
-#endif
+#endif  // AP_FASTBOOT_ENABLED
 
 #ifdef HAL_GPIO_PIN_STAY_IN_BOOTLOADER
     // optional "stay in bootloader" pin
@@ -184,5 +198,4 @@ int main(void)
     }
 #endif
 }
-
 
