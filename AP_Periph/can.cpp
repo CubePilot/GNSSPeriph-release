@@ -591,7 +591,24 @@ void AP_Periph_FW::can_start()
             dronecan->canard_iface.add_interface(can_iface_periph[i]);
         }
     }
+
+    // set track timestamps
+    for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
+        if (periph.can_iface_periph[i]) {
+            // set Timesync tracking
+            periph.can_iface_periph[i]->set_track_tx_timestamp((0xFFFFLU << 8), ((uint32_t)UAVCAN_PROTOCOL_GLOBALTIMESYNC_ID)<<8);
+        }
+    }
 }
+
+uint64_t AP_Periph_FW::get_tracked_tx_timestamp(uint8_t i)
+{
+    if (can_iface_periph[i]) {
+        return can_iface_periph[i]->get_tracked_tx_timestamp();
+    }
+    return 0;
+}
+
 
 AP_Periph_DroneCAN::AP_Periph_DroneCAN()
 {

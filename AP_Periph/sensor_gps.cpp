@@ -16,6 +16,22 @@ void AP_Periph_DroneCAN::can_gps_update(void)
     if (gps.get_type(0) == AP_GPS::GPS_Type::GPS_TYPE_NONE) {
         return;
     }
+
+    static uint32_t last_update_us = 0;
+    if ((AP_HAL::millis() - last_update_us) > 1000) {
+        // send time sync message every second
+        uavcan_protocol_GlobalTimeSync ts {};
+        for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
+            uint64_t last_corrected_gps_time_us = periph.gps.last_corrected_gps_time_usec();
+            uint64_t last_message_epoch_usec = periph.gps.last_message_epoch_usec();
+            if (periph.can_iface_periph[i] && last_corrected_gps_time_us != 0 && last_message_epoch_usec != 0) {
+                ts.previous_transmission_timestamp_usec = last_message_epoch_usec + periph.get_tracked_tx_timestamp(i) - last_corrected_gps_time_us;
+                global_time_sync_pub[i].broadcast(ts);
+            }
+        }
+        last_update_us = AP_HAL::millis();
+    }
+
     gps.update();
     send_moving_baseline_msg();
     send_relposheading_msg();
