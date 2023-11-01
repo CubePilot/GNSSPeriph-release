@@ -42,7 +42,7 @@
 
 #include "Parameters.h"
 
-#define LED_CONNECTED_BRIGHTNESS 0.1f
+#define LED_CONNECTED_BRIGHTNESS 10 // 10%
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
 void stm32_watchdog_init();

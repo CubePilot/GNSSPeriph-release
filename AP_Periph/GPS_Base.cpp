@@ -586,7 +586,7 @@ void GPS_Base::update_leds()
     }
     auto serial_led = AP_SerialLED::get_singleton();
     bool no_lock = !_ppk_config_finished || _start_mean_acc == 0;
-    const float brightness = hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : periph.notify.get_rgb_led_brightness_percent() * 0.01f;
+    const float brightness = (hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : periph.notify.get_rgb_led_brightness_percent()) * 0.01f;
     if (no_lock && !curr_svin.valid) {
         // set all the leds to yellow while configuring
         for (uint8_t i=0; i<periph.notify.get_led_len(); i++) {
