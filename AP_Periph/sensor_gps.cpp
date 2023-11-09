@@ -172,11 +172,14 @@ void AP_Periph_DroneCAN::send_moving_baseline_msg()
     // send the packet from Moving Base to be used RelPosHeading calc by GPS module
     ardupilot_gnss_MovingBaselineData mbldata {};
     // get the data from the moving base
-    static_assert(sizeof(ardupilot_gnss_MovingBaselineData::data.data) == RTCM3_MAX_PACKET_LEN, "Size of Moving Base data is wrong");
-    mbldata.data.len = len;
-    memcpy(mbldata.data.data, data, len);
-
-    moving_baseline_pub.broadcast(mbldata);
+    // static_assert(sizeof(ardupilot_gnss_MovingBaselineData::data.data) == RTCM3_MAX_PACKET_LEN, "Size of Moving Base data is wrong");
+    while (len != 0) {
+        mbldata.data.len = MIN(len, sizeof(mbldata.data.data));
+        memcpy(mbldata.data.data, data, mbldata.data.len);
+        moving_baseline_pub.broadcast(mbldata);
+        len -= mbldata.data.len;
+        data += mbldata.data.len;
+    }
     gps.clear_RTCMV3();
 #endif // HAL_PERIPH_ENABLE_GPS && GPS_MOVING_BASELINE
 }
