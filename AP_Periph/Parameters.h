@@ -55,6 +55,8 @@ public:
         k_param_can_node_stats,
         k_param_cubeid_fw_update_enabled,
         k_param_gps_base,
+        k_param_imu_sample_rate,
+        k_param_imu,
     };
 
     AP_Int16 format_version;
@@ -97,6 +99,7 @@ public:
     AP_Int8 node_stats;
     AP_Int8 cubeid_fw_update_enabled;
     AP_Int8 gps_mb_only_can_port;
+    AP_Int16 imu_sample_rate;
     Parameters() {}
 };
 

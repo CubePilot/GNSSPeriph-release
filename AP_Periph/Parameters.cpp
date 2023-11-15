@@ -183,6 +183,19 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GSCALAR(gps_mb_only_can_port, "GPS_MB_ONLY_PORT", 0),
 #endif
 
+#if AP_INERTIALSENSOR_ENABLED
+    // @Param: IMU_SAMPLE_RATE
+    // @DisplayName: IMU Sample Rate
+    // @Description: IMU Sample Rate
+    // @Range: 0 1000
+    // @User: Standard
+    GSCALAR(imu_sample_rate, "IMU_SAMPLE_RATE", 0),
+
+    // @Group: INS_
+    // @Path: ardupilot/libraries/AP_InertialSensor/AP_InertialSensor.cpp
+    GOBJECT(imu, "INS", AP_InertialSensor),
+#endif
+
     AP_VAREND
 };
 

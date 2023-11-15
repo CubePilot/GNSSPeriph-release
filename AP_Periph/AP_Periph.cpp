@@ -139,7 +139,10 @@ void AP_Periph_FW::init()
     }
 
 #if AP_INERTIALSENSOR_ENABLED
-    imu.init(1000);
+    if (g.imu_sample_rate) {
+        imu.init(g.imu_sample_rate);
+        hal.scheduler->thread_create(FUNCTOR_BIND(dronecan, &AP_Periph_DroneCAN::can_imu_update, void), "IMU_UPDATE", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
+    }
 #endif
 
     bool enable_gps = true;

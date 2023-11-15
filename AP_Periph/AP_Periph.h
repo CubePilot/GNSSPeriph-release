@@ -155,6 +155,7 @@ public:
 
 #if AP_INERTIALSENSOR_ENABLED
     AP_InertialSensor imu;
+    uint32_t last_imu_update_usec;
 #endif
 
     // setup the var_info table
@@ -273,6 +274,11 @@ public:
     Canard::Publisher<uavcan_equipment_air_data_StaticTemperature> static_temperature_pub{canard_iface};
 
     Canard::Publisher<uavcan_protocol_debug_LogMessage> log_pub{canard_iface};
+
+    void can_imu_update();
+#if AP_INERTIALSENSOR_ENABLED
+    Canard::Publisher<uavcan_equipment_ahrs_RawIMU> raw_imu_pub{canard_iface};
+#endif
 
     // servers
     static void handle_get_node_info(const CanardRxTransfer& transfer, const uavcan_protocol_GetNodeInfoRequest &req);
