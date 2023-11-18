@@ -43,14 +43,11 @@ def copy_local_hwdef():
     dirname, dirlist, filenames = next(os.walk('bootloaders'))
     for file in filenames:
         realpath = os.path.realpath(os.path.join(dirname, file))
-        if os.path.islink(os.path.join('ardupilot/Tools/bootloaders', file)):
-            if os.path.realpath(os.path.join('ardupilot/Tools/bootloaders', file)) == realpath:
-                continue
-            else:
-                os.remove(os.path.join('ardupilot/Tools/bootloaders', file))
-        elif os.path.isfile(os.path.join('ardupilot/Tools/bootloaders', file)):
+        # remove file if it exists
+        if os.path.isfile(os.path.join('ardupilot/Tools/bootloaders', file)):
             os.remove(os.path.join('ardupilot/Tools/bootloaders', file))
-        os.symlink(realpath, os.path.join('ardupilot/Tools/bootloaders', file))
+        # copy file
+        shutil.copy(realpath, os.path.join('ardupilot/Tools/bootloaders', file))
 
 def options(opt):
     opt.parser.set_defaults(top='ardupilot')
