@@ -62,7 +62,7 @@ jobs:
     - name: configure
       run: ./waf configure --board Here3+ -g
     - name: build
-      run: ./waf AP_Periph
+      run: ./waf clean && ./waf AP_Periph
     - name: configure bootloader
       run: ./waf configure --board Here3+ --bootloader
     - name: build
@@ -93,7 +93,7 @@ jobs:
     - name: configure
       run: ./waf configure --board Here4 -g
     - name: build
-      run: ./waf AP_Periph
+      run: ./waf clean && ./waf AP_Periph
     - name: configure bootloader
       run: ./waf configure --board Here4 --bootloader
     - name: build
@@ -106,7 +106,7 @@ jobs:
     - name: configure
       run: ./waf configure --board HerePro -g
     - name: build
-      run: ./waf AP_Periph
+      run: ./waf clean && ./waf AP_Periph
     - name: configure bootloader
       run: ./waf configure --board HerePro --bootloader
     - name: build
@@ -119,7 +119,7 @@ jobs:
     - name: configure
       run: ./waf configure --board HereProAlpha -g
     - name: build
-      run: ./waf AP_Periph
+      run: ./waf clean && ./waf AP_Periph
     - name: copy HereProAlpha files to release
       run: |
         cp build/HereProAlpha/bin/AP_Periph.bin release/HereProAlpha_FW.bin
