@@ -79,6 +79,7 @@ def build(bld):
     os.chdir('..')
     # remove AP_Periph from build
     bld.recurse('AP_Periph/')
+    bld.recurse('AP_Bootloader/')
 
 def list_boards(ctx):
     os.chdir('ardupilot')
