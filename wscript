@@ -500,6 +500,7 @@ def configure(cfg):
         cfg.end_msg('enabled')
     else:
         cfg.end_msg('maybe')
+    cfg.recurse('ardupilot/libraries/AP_Scripting')
 
     cfg.recurse(cfg.srcnode.find_node('libraries/AP_GPS').abspath())
 
