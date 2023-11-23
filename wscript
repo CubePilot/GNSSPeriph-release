@@ -11,9 +11,12 @@ import json
 import fnmatch
 import shutil
 sys.path.insert(0, 'ardupilot/Tools/ardupilotwaf/')
+sys.path.insert(0, '.')
 import waflib.extras.compat15
 import ardupilotwaf
 import boards
+from waflib.Configure import conf
+from waflib import Context, Logs, Task, Utils
 
 def copy_local_hwdef():
     # find all folders containing hwdef.dat in current directory
@@ -69,6 +72,7 @@ def configure(cfg):
         os.chdir('..')
         raise e
     os.chdir('..')
+    cfg.load('wscript_git')
 
 def build(bld):
     copy_local_hwdef()
