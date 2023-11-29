@@ -68,6 +68,7 @@ jobs:
         cp build/Here3+/bin/AP_Periph.bin release/Here3Plus_FW.bin
         cp build/Here3+/bin/AP_Periph_with_bl.hex release/Here3Plus_FW_with_bl.hex
         cp build/Here3+/bin/AP_Periph release/Here3Plus_FW.elf
+        cp build/Here3+/bin/AP_Periph.apj release/Here3+_FW.apj
 
     - name: Download CubeID firmware for Here4
       run: |
@@ -98,6 +99,7 @@ jobs:
         cp build/Here4/bin/AP_Periph.bin release/Here4_FW.bin
         cp build/Here4/bin/AP_Periph_with_bl.hex release/Here4_FW_with_bl.hex
         cp build/Here4/bin/AP_Periph release/Here4_FW.elf
+        cp build/Here4/bin/AP_Periph.apj release/Here4_FW.apj
     - name: configure
       run: ./waf configure --board HerePro -g
     - name: build
@@ -111,6 +113,7 @@ jobs:
         cp build/HerePro/bin/AP_Periph.bin release/HerePro_FW.bin
         cp build/HerePro/bin/AP_Periph_with_bl.hex release/HerePro_FW_with_bl.hex
         cp build/HerePro/bin/AP_Periph release/HerePro_FW.elf
+        cp build/HerePro/bin/AP_Periph.apj release/HerePro_FW.apj
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v2.2.4
       with:
@@ -126,10 +129,13 @@ jobs:
           release/Here3Plus_FW.bin
           release/Here3Plus_FW_with_bl.hex
           release/Here3Plus_FW.elf
+          release/Here3+_FW.apj
           release/Here4_FW.bin
           release/Here4_FW_with_bl.hex
           release/Here4_FW.elf
+          release/Here4_FW.apj
           release/HerePro_FW.bin
           release/HerePro_FW_with_bl.hex
           release/HerePro_FW.elf
+          release/HerePro_FW.apj
 
