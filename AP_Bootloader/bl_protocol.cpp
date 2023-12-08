@@ -232,6 +232,9 @@ do_jump(uint32_t stacktop, uint32_t entrypoint)
 void
 jump_to_app()
 {
+    // Reset LEDs
+    profiLED_reset_LEDs(4);
+
     const uint32_t *app_base = (const uint32_t *)(APP_START_ADDRESS);
 
     // If we have QSPI chip start it
