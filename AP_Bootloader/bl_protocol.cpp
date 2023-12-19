@@ -232,9 +232,10 @@ do_jump(uint32_t stacktop, uint32_t entrypoint)
 void
 jump_to_app()
 {
+#ifdef HAL_GPIO_PIN_LED_SCK
     // Reset LEDs
     profiLED_reset_LEDs(4);
-
+#endif
     const uint32_t *app_base = (const uint32_t *)(APP_START_ADDRESS);
 
     // If we have QSPI chip start it
