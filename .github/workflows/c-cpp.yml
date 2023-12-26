@@ -41,8 +41,8 @@ jobs:
             -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
             "repos/cubepilot/cubeid/releases/assets/$HERE3_ASSET_ID" > fw_update.bin
             ls -al fw_update.bin
-            mkdir -p ROMFS_custom/
-            mv fw_update.bin ROMFS_custom/CubeID_fw.bin
+            mkdir -p ardupilot/ROMFS_custom/
+            mv fw_update.bin ardupilot/ROMFS_custom/CubeID_fw.bin
       env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
     - name: Prepare ccache timestamp
@@ -87,8 +87,8 @@ jobs:
             -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
             "repos/cubepilot/cubeid/releases/assets/$HERE4_ASSET_ID" > fw_update.bin
             ls -al fw_update.bin
-            mkdir -p ROMFS_custom/
-            mv fw_update.bin ROMFS_custom/CubeID_fw.bin
+            mkdir -p ardupilot/ROMFS_custom/
+            mv fw_update.bin ardupilot/ROMFS_custom/CubeID_fw.bin
       env:
           GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
     - name: configure
