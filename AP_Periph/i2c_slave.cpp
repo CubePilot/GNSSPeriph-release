@@ -1,7 +1,7 @@
 #include "AP_Periph.h"
 #include <ch.h>
 #include <hal.h>
-
+#ifdef I2C_SLAVE_ENABLED
 #define TOSHIBALED_I2C_ADDRESS 0x55
 #define RM3100_I2C_ADDR1 0x20
 #define RM3100_I2C_ADDR2 0x21
@@ -254,3 +254,4 @@ OSAL_IRQ_HANDLER(STM32_I2C2_EVENT_HANDLER) {
 
     OSAL_IRQ_EPILOGUE();
 }
+#endif

@@ -673,7 +673,18 @@ void AP_Periph_FW::can_update()
     if (AP_HAL::millis() > send_next_node_id_allocation_request_at_ms) {
         can_do_dna();
     }
+    bool enable_gps = true;
+#ifdef I2C_SLAVE_ENABLED
+    enable_gps = !g.serial_i2c_mode;
+#endif
     
+#ifdef I2C_SLAVE_ENABLED
+    // update LEDs as well
+    if (i2c_new_led_data && g.serial_i2c_mode) {
+        i2c_new_led_data = false;
+        set_rgb_led(i2c_led_color_red, i2c_led_color_green, i2c_led_color_blue);
+    }
+#endif
     if (!AP_Periph_FW::no_iface_finished_dna) {
         static uint32_t last_1Hz_ms;
         if (now - last_1Hz_ms >= 1000) {
@@ -681,24 +692,10 @@ void AP_Periph_FW::can_update()
             process1HzTasks(AP_HAL::micros64());
         }
 
-        bool enable_gps = true;
-#ifdef I2C_SLAVE_ENABLED
-        enable_gps = !g.serial_i2c_mode;
-#endif
-
         if (enable_gps) {
             dronecan->can_gps_update();
             dronecan->send_serial_monitor_data();
         }
-#ifdef I2C_SLAVE_ENABLED
-        else {
-            // update LEDs as well
-            if (i2c_new_led_data) {
-                i2c_new_led_data = false;
-                set_rgb_led(i2c_led_color_red, i2c_led_color_green, i2c_led_color_blue);
-            }
-        }
-#endif
     
         dronecan->can_mag_update();
         dronecan->can_baro_update();

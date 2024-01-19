@@ -164,9 +164,11 @@ void AP_Periph_FW::init()
 #endif
     }
 
+#ifdef I2C_SLAVE_ENABLED
     i2c_event_handle.set_source(&i2c_event_source);
     i2c_event_handle.register_event(1);
     i2c_setup();
+#endif
 
     compass.init();
 
@@ -283,6 +285,7 @@ void AP_Periph_FW::update()
 
     rcout_update();
 
+#ifdef I2C_SLAVE_ENABLED
     if (_setup_ser_i2c_mode && AP_Periph_FW::no_iface_finished_dna) {
         hal.scheduler->expect_delay_ms(100);
         g.serial_i2c_mode.set_and_save(1);
@@ -297,7 +300,9 @@ void AP_Periph_FW::update()
         hal.scheduler->reboot(false);
     }
 
-    if (!g.serial_i2c_mode) {
+    if (!g.serial_i2c_mode)
+#endif
+    {
         update_rainbow();
     }
 

@@ -122,8 +122,9 @@ public:
 
     void toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t recv_byte);
 
+#ifdef I2C_SLAVE_ENABLED
     void i2c_setup();
-
+#endif
     uint8_t compass_reg;
     struct reg_list {
         struct reg_list *next;
@@ -169,6 +170,7 @@ public:
     uint64_t last_time_sync_usec;
     int64_t time_offset_usec;
 
+#ifdef I2C_SLAVE_ENABLED
     uint8_t i2c_led_color_red;
     uint8_t i2c_led_color_green;
     uint8_t i2c_led_color_blue;
@@ -182,7 +184,8 @@ public:
 
     HAL_EventHandle i2c_event_handle;
     ChibiOS::EventSource i2c_event_source;
-    
+#endif
+
     static AP_Periph_FW *_singleton;
 
     enum class DebugOptions {

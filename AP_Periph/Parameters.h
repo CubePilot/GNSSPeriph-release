@@ -94,7 +94,9 @@ public:
 
     AP_Int8 can_fdmode;
     AP_Int32 can_fdbaudrate[HAL_NUM_CAN_IFACES];
+#ifdef I2C_SLAVE_ENABLED
     AP_Int8 serial_i2c_mode;
+#endif
     AP_Int8 can_terminator[HAL_NUM_CAN_IFACES];
     AP_Int8 node_stats;
     AP_Int8 cubeid_fw_update_enabled;

@@ -153,9 +153,10 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GARRAY(can_fdbaudrate, 1,     "CAN2_FDBAUDRATE", 8000000),
 #endif
 
+#ifdef I2C_SLAVE_ENABLED
     // select serial i2c mode and disable can gps
     GSCALAR(serial_i2c_mode,     "SER_I2C_MODE", 0),
-
+#endif
     //select terminator setting
     GARRAY(can_terminator, 0,    "CAN_TERMINATOR", 0),
 
