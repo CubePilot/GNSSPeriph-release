@@ -29,6 +29,13 @@ void AP_Periph_DroneCAN::can_gps_update(void)
     // send time sync message
     uavcan_protocol_GlobalTimeSync ts {};
     for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
+        uint8_t idx; // unused
+        if (gps.status() < AP_GPS::GPS_OK_FIX_3D &&
+            !gps.is_healthy() &&
+            !gps.first_unconfigured_gps(idx)) {
+            // no good fix and no healthy GPS, so we don't send timesync
+            break;
+        }
         uint64_t last_message_epoch_usec = gps.last_message_epoch_usec();
         if (last_message_local_time_us != 0 &&
             last_message_epoch_usec != 0 &&
