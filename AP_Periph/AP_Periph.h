@@ -236,6 +236,7 @@ public:
 
 
 class AP_Periph_DroneCAN {
+    uint8_t timesync_tid[HAL_NUM_CAN_IFACES];
 public:
     AP_Periph_DroneCAN();
 
@@ -261,11 +262,7 @@ public:
     Canard::Publisher<uavcan_equipment_gnss_Fix2> fix2_pub{canard_iface};
     Canard::Publisher<uavcan_equipment_gnss_Auxiliary> aux_pub{canard_iface};
     Canard::Publisher<ardupilot_gnss_Status> gnss_status_pub{canard_iface};
-#if HAL_NUM_CAN_IFACES == 1
-    Canard::Publisher<uavcan_protocol_GlobalTimeSync> global_time_sync_pub[HAL_NUM_CAN_IFACES] = {{canard_iface}};
-#else
-    Canard::Publisher<uavcan_protocol_GlobalTimeSync> global_time_sync_pub[HAL_NUM_CAN_IFACES] = {{canard_iface, 1}, {canard_iface, 1<<1}};
-#endif
+
     void send_moving_baseline_msg();
     Canard::Publisher<ardupilot_gnss_MovingBaselineData> moving_baseline_pub{canard_iface};
 

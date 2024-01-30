@@ -17,21 +17,8 @@ void AP_Periph_DroneCAN::can_gps_update(void)
         return;
     }
 
-    static uint32_t last_update_us = 0;
-    if ((AP_HAL::millis() - last_update_us) > 1000) {
-        // send time sync message every second
-        uavcan_protocol_GlobalTimeSync ts {};
-        for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
-            uint64_t last_gps_local_time_us = periph.gps.last_pps_time_usec();
-            uint64_t last_message_epoch_usec = periph.gps.last_message_epoch_usec();
-            if (periph.can_iface_periph[i] && last_gps_local_time_us != 0 && last_message_epoch_usec != 0) {
-                ts.previous_transmission_timestamp_usec = last_message_epoch_usec + periph.get_tracked_tx_timestamp(i) - last_gps_local_time_us;
-                global_time_sync_pub[i].broadcast(ts);
-            }
-        }
-        last_update_us = AP_HAL::millis();
-    }
-
+    // we need to record this time as its reset when we call gps.update()
+    uint32_t last_message_local_time_us = gps.last_pps_time_usec();
     gps.update();
     send_moving_baseline_msg();
     send_relposheading_msg();
@@ -39,6 +26,38 @@ void AP_Periph_DroneCAN::can_gps_update(void)
         return;
     }
     periph.last_gps_update_ms = gps.last_message_time_ms();
+    // send time sync message
+    uavcan_protocol_GlobalTimeSync ts {};
+    for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
+        uint64_t last_message_epoch_usec = gps.last_message_epoch_usec();
+        if (last_message_local_time_us != 0 &&
+            last_message_epoch_usec != 0 &&
+            canard_iface.get_node_id() != CANARD_BROADCAST_NODE_ID) {
+            // (last_message_epoch_usec - last_message_local_time_us) represents the offset between the time in gps epoch and the local time of the node
+            // periph.get_tracked_tx_timestamp(i) represent the offset timestamp in the local time of the node
+            if (periph.get_tracked_tx_timestamp(i)) {
+            ts.previous_transmission_timestamp_usec = (last_message_epoch_usec - last_message_local_time_us) + periph.get_tracked_tx_timestamp(i);
+            } else {
+                ts.previous_transmission_timestamp_usec = 0;
+            }
+            uint8_t buffer[UAVCAN_PROTOCOL_GLOBALTIMESYNC_MAX_SIZE] {};
+            uint16_t total_size = uavcan_protocol_GlobalTimeSync::cxx_iface::encode(&ts, buffer, false);
+            // create transfer object
+            CanardTxTransfer transfer_object = {
+                .transfer_type = CanardTransferTypeBroadcast,
+                .data_type_signature = UAVCAN_PROTOCOL_GLOBALTIMESYNC_SIGNATURE,
+                .data_type_id = UAVCAN_PROTOCOL_GLOBALTIMESYNC_ID,
+                .inout_transfer_id = &timesync_tid[i],
+                .priority = CANARD_TRANSFER_PRIORITY_HIGH,
+                .payload = (uint8_t*)buffer,
+                .payload_len = total_size,
+                .canfd = false,
+                .deadline_usec = AP_HAL::micros64()+1000000U,
+                .iface_mask = uint8_t(1<<i),
+            };
+            canardBroadcastObj(&canard_iface.get_canard(), &transfer_object);
+        }
+    }
 
     {
         /*
