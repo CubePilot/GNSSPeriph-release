@@ -22,10 +22,10 @@ void AP_Periph_DroneCAN::can_gps_update(void)
         // send time sync message every second
         uavcan_protocol_GlobalTimeSync ts {};
         for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
-            uint64_t last_corrected_gps_time_us = periph.gps.last_corrected_gps_time_usec();
+            uint64_t last_gps_local_time_us = periph.gps.last_pps_time_usec();
             uint64_t last_message_epoch_usec = periph.gps.last_message_epoch_usec();
-            if (periph.can_iface_periph[i] && last_corrected_gps_time_us != 0 && last_message_epoch_usec != 0) {
-                ts.previous_transmission_timestamp_usec = last_message_epoch_usec + periph.get_tracked_tx_timestamp(i) - last_corrected_gps_time_us;
+            if (periph.can_iface_periph[i] && last_gps_local_time_us != 0 && last_message_epoch_usec != 0) {
+                ts.previous_transmission_timestamp_usec = last_message_epoch_usec + periph.get_tracked_tx_timestamp(i) - last_gps_local_time_us;
                 global_time_sync_pub[i].broadcast(ts);
             }
         }
