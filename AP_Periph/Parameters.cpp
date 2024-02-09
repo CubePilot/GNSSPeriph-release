@@ -196,6 +196,15 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GOBJECT(imu, "INS", AP_InertialSensor),
 #endif
 
+#ifdef GPIO_UBX_SAFEBOOT
+    // @Param: GPS_SAFEBOOT
+    // @DisplayName: GPS Safeboot
+    // @Description: GPS Safeboot
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    GSCALAR(gps_safeboot, "GPS_SAFEBOOT", 0),
+#endif
+
     AP_VAREND
 };
 

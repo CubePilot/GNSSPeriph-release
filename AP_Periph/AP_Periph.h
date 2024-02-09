@@ -229,6 +229,10 @@ public:
 #ifdef ENABLE_BASE_MODE
     GPS_Base gps_base;
 #endif
+
+#ifdef GPIO_UBX_SAFEBOOT
+    bool gps_in_safeboot;
+#endif
 };
 
 

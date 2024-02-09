@@ -145,6 +145,19 @@ void AP_Periph_FW::init()
     }
 #endif
 
+#ifdef GPIO_UBX_SAFEBOOT
+    if (g.gps_safeboot) {
+        palClearLine(HAL_GPIO_PIN_GPS_RESET_N);
+        palSetLineMode(HAL_GPIO_PIN_GPS_RESET_N, PAL_MODE_OUTPUT_PUSHPULL);
+
+        palClearLine(HAL_GPIO_PIN_GPS_SAFEBOOT_N);
+        palSetLineMode(HAL_GPIO_PIN_GPS_SAFEBOOT_N, PAL_MODE_OUTPUT_PUSHPULL);
+        hal.scheduler->delay(1000);
+        palSetLineMode(HAL_GPIO_PIN_GPS_RESET_N, PAL_MODE_INPUT);
+        g.gps_safeboot.set_and_save(0);
+    }
+#endif
+
     bool enable_gps = true;
 #ifdef I2C_SLAVE_ENABLED
     enable_gps = !g.serial_i2c_mode;
