@@ -144,8 +144,7 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         prerelease: true
-        automatic_release_tag: "betarelease"
-        title: "Beta Build"
+        automatic_release_tag: "latest"
         files: |
           release/*
     # upload to github releases
