@@ -534,7 +534,7 @@ bool AP_Periph_FW::can_do_dna()
     allocation_request.unique_id.len = uid_size;
 
     // Broadcasting the request
-    dronecan->dynamic_node_id_pub.broadcast(allocation_request);
+    dronecan->dynamic_node_id_pub.broadcast(allocation_request, false);
 
     // Preparing for timeout; if response is received, this value will be updated from the callback.
     node_id_allocation_unique_id_offset = 0;
@@ -589,6 +589,7 @@ void AP_Periph_FW::can_start()
                 can_iface_periph[i]->init(g.can_baudrate[i], AP_HAL::CANIface::NormalMode);
             }
             dronecan->canard_iface.add_interface(can_iface_periph[i]);
+            dronecan->canard_iface.set_canfd(canfdout());
         }
     }
 
