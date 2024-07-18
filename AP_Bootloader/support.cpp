@@ -485,3 +485,53 @@ void port_setbaud(uint32_t baudrate)
 #endif
 }
 #endif // BOOTLOADER_DEV_LIST
+
+
+#ifdef STM32H7
+/*
+  check if flash has any ECC errors and if it does then erase all of
+  flash
+ */
+#define ECC_CHECK_CHUNK_SIZE 32
+void check_ecc_errors(void)
+{
+    __disable_fault_irq();
+    auto *dma = dmaStreamAlloc(STM32_DMA_STREAM_ID(1, 1), 0, nullptr, nullptr);
+
+    uint32_t *buf = (uint32_t*)malloc_dma(ECC_CHECK_CHUNK_SIZE);
+
+    if (buf == nullptr) {
+        // DMA'ble memory not available
+        return;
+    }
+    uint32_t ofs = 0;
+    while (ofs < BOARD_FLASH_SIZE*1024) {
+        if (FLASH->SR1 != 0) {
+            break;
+        }
+#if BOARD_FLASH_SIZE > 1024
+        if (FLASH->SR2 != 0) {
+            break;
+        }
+#endif
+        dmaStartMemCopy(dma,
+                        STM32_DMA_CR_PL(0) | STM32_DMA_CR_PSIZE_BYTE |
+                        STM32_DMA_CR_MSIZE_BYTE,
+                        ofs+(uint8_t*)FLASH_BASE, buf, sizeof(buf));
+        dmaWaitCompletion(dma);
+        ofs += sizeof(buf);
+    }
+    dmaStreamFree(dma);
+    
+    if (ofs < BOARD_FLASH_SIZE*1024) {
+        // we must have ECC errors in flash
+        flash_set_keep_unlocked(true);
+        for (uint32_t i=0; i<num_pages; i++) {
+            stm32_flash_erasepage(flash_base_page+i);
+        }
+        flash_set_keep_unlocked(false);
+    }
+    __enable_fault_irq();
+}
+#endif // STM32H7
+

@@ -73,12 +73,9 @@ int main(void)
     bool try_boot = false;
     uint32_t timeout = HAL_BOOTLOADER_TIMEOUT;
 
-#ifdef HAL_BOARD_AP_PERIPH_ZUBAXGNSS
-    // setup remapping register for ZubaxGNSS
-    uint32_t mapr = AFIO->MAPR;
-    mapr &= ~AFIO_MAPR_SWJ_CFG;
-    mapr |= AFIO_MAPR_SWJ_CFG_JTAGDISABLE;
-    AFIO->MAPR = mapr | AFIO_MAPR_CAN_REMAP_REMAP2 | AFIO_MAPR_SPI3_REMAP;
+    flash_init();
+#ifdef STM32H7
+    check_ecc_errors();
 #endif
 
 #if HAL_FLASH_PROTECTION
@@ -170,8 +167,6 @@ int main(void)
 #if HAL_USE_CAN == TRUE || HAL_NUM_CAN_IFACES
     can_start();
 #endif
-    flash_init();
-
 
 #if EXT_FLASH_SIZE_MB
     while (!ext_flash.init()) {

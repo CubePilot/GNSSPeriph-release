@@ -21,6 +21,10 @@ void port_setbaud(uint32_t baudrate);
 
 void flash_init();
 
+#ifdef STM32H7
+void check_ecc_errors();
+#endif
+
 uint32_t flash_func_read_word(uint32_t offset);
 bool flash_func_write_word(uint32_t offset, uint32_t v);
 bool flash_func_write_words(uint32_t offset, uint32_t *v, uint8_t n);
