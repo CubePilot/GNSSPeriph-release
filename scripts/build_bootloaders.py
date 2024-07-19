@@ -71,7 +71,7 @@ def run_program(cmd_list):
     return True
 
 def build_board(board):
-    configure_args = "--board %s --bootloader --no-submodule-update --Werror" % board
+    configure_args = "--board %s -g --bootloader --no-submodule-update --Werror" % board
     configure_args = configure_args.split()
     if args.signing_key is not None:
         print("Building secure bootloader")
