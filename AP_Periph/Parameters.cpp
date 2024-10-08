@@ -218,6 +218,14 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GOBJECT(gps_rover, "ROVER",  GPS_Rover),
 #endif
 
+#ifdef HAL_USB_VBUS_SENS_CHAN
+    // @Param: CAN2_FORCE_EN
+    // @DisplayName: Force CAN2 enable
+    // @Description: Force CAN2 enable
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    GSCALAR(can2_force_en, "CAN2_FORCE_EN", 0),
+#endif
     AP_VAREND
 };
 

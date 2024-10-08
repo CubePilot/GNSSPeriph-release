@@ -91,7 +91,7 @@ void AP_Periph_FW::init()
     // sleep for 2ms to fetch the VBUS voltage
     hal.scheduler->delay(2);
 
-    if (vbus_voltage_source->voltage_latest() < 4.0f) {
+    if ((vbus_voltage_source->voltage_latest() < 4.0f) || g.can2_force_en) {
         // we are not connected over USB, disable USB
         msdStop(&USBMSD1);
         usbDisconnectBus(&USBD2);
