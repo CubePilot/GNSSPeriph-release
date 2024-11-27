@@ -168,7 +168,7 @@ public:
 
     static const AP_Param::Info var_info[];
 
-    uint32_t last_mag_update_ms;
+    uint32_t last_mag_update_ms[COMPASS_MAX_INSTANCES];
     uint32_t last_gps_update_ms;
     uint32_t last_baro_update_ms;
     uint64_t last_time_sync_usec;
@@ -269,7 +269,7 @@ public:
     Canard::Publisher<dronecan_protocol_CanStats> can_stats_pub{canard_iface};
 
     void can_mag_update();
-    Canard::Publisher<uavcan_equipment_ahrs_MagneticFieldStrength> mag_pub{canard_iface};
+    Canard::Publisher<uavcan_equipment_ahrs_MagneticFieldStrength2> mag_pub{canard_iface};
 
     void can_gps_init();
     void can_gps_update();
