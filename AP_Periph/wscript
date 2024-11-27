@@ -71,6 +71,11 @@ def build(bld):
                     'AP_Logger',
                     'AC_PID',
                     'AP_CheckFirmware',
+                    'AP_AHRS',
+                    'AP_NavEKF3',
+                    'AP_NavEKF',
+                    'AP_DAL',
+                    'AP_Declination'
                     ]
     bld.ap_stlib(
         name= 'AP_Periph_libs',

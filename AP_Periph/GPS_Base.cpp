@@ -775,14 +775,14 @@ void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
     mavlink_param_request_list_t packet;
     mavlink_msg_param_request_list_decode(&msg, &packet);
     char key[AP_MAX_NAME_SIZE+1] = "FORMAT_VERSION";
-    uint8_t index = 0;
+    uint8_t index = 1;
     ap_var_type var_type;
     // set format_version
     AP_Param *vp = AP_Param::find("FORMAT_VERSION", &var_type);
     if (vp == nullptr) {
         return;
     }
-    mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+    mavlink_msg_param_value_send(periph.mavlink.get_chan(),
                                 key,
                                 vp->cast_to_float(var_type),
                                 mav_param_type(var_type),
@@ -799,7 +799,7 @@ void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
             if (vp == nullptr) {
                 continue;
             }
-            mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+            mavlink_msg_param_value_send(periph.mavlink.get_chan(),
                                         key,
                                         vp->cast_to_float(var_type),
                                         mav_param_type(var_type),
@@ -809,7 +809,7 @@ void GPS_Base::handle_param_request_list(const mavlink_message_t &msg)
     } else {
         // just send enable
         strcat(key, "_ENABLE");
-        mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+        mavlink_msg_param_value_send(periph.mavlink.get_chan(),
                                     key,
                                     (float)_enabled.get(),
                                     MAV_PARAM_TYPE_INT8,
@@ -874,7 +874,7 @@ void GPS_Base::handle_param_set(const mavlink_message_t &msg)
 
     
     // send back the new value
-    mavlink_msg_param_value_send(periph.mavlink.get_channel(),
+    mavlink_msg_param_value_send(periph.mavlink.get_chan(),
                                  key,
                                  vp->cast_to_float(var_type),
                                  mav_param_type(var_type),
@@ -908,7 +908,7 @@ void GPS_Base::handle_param_request_read(const mavlink_message_t &msg)
     float value = vp->cast_to_float(var_type);
     // send parameter value
     mavlink_msg_param_value_send(
-        periph.mavlink.get_channel(),
+        periph.mavlink.get_chan(),
         key,
         value,
         mav_param_type(var_type),

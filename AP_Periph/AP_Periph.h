@@ -35,7 +35,7 @@
 #include "GPS_Base.h"
 #include "GPS_Rover.h"
 #include <AP_Common/ExpandingString.h>
-
+#include <AP_AHRS/AP_AHRS.h>
 
 #include "Parameters.h"
 
@@ -246,6 +246,12 @@ public:
     ObjectBuffer<uavcan_protocol_debug_LogMessage> log_buffer{20};
 
     ExpandingString uart_info;
+
+    MAVLink_Periph* accel_cal_gcs = nullptr;
+    uint8_t accel_cal_sysid;
+    uint8_t accel_cal_compid;
+    bool initialise_accel_cal;
+    AP_AHRS ahrs;
 };
 
 

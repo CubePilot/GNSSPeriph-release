@@ -218,6 +218,10 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GOBJECT(gps_rover, "ROVER",  GPS_Rover),
 #endif
 
+    // @Group: AHRS
+    // @Path: ardupilot/libraries/AP_AHRS/AP_AHRS.cpp
+    GOBJECT(ahrs, "AHRS_", AP_AHRS),
+
     AP_VAREND
 };
 

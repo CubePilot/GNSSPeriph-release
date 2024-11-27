@@ -256,7 +256,7 @@ void MAVLink_Periph::send_version() const
 
     mavlink_msg_autopilot_version_send(
         chan,
-        MAV_PROTOCOL_CAPABILITY_MAVLINK2,
+        MAV_PROTOCOL_CAPABILITY_MAVLINK2 | MAV_PROTOCOL_CAPABILITY_COMPASS_CALIBRATION,
         flight_sw_version,
         middleware_sw_version,
         version.os_sw_version,
@@ -271,11 +271,28 @@ void MAVLink_Periph::send_version() const
     );
 }
 
+static void convert_command_long_to_command_int(const mavlink_command_long_t &packet_long, mavlink_command_int_t &packet_int)
+{
+    packet_int.target_system = packet_long.target_system;
+    packet_int.target_component = packet_long.target_component;
+    packet_int.command = packet_long.command;
+    packet_int.current = 0;
+    packet_int.autocontinue = 0;
+    packet_int.param1 = packet_long.param1;
+    packet_int.param2 = packet_long.param2;
+    packet_int.param3 = packet_long.param3;
+    packet_int.param4 = packet_long.param4;
+    packet_int.x = packet_long.param5;
+    packet_int.y = packet_long.param6;
+    packet_int.z = packet_long.param7;
+}
+
 void MAVLink_Periph::handle_command_long(const mavlink_message_t &msg)
 {
     // decode mavlink long
     mavlink_command_long_t packet;
     mavlink_msg_command_long_decode(&msg, &packet);
+    Debug("MAVLink_Periph::handle_command_long %d", packet.command);
     switch (packet.command) {
         case MAV_CMD_REQUEST_MESSAGE:
             if ((uint16_t)(packet.param1) == MAVLINK_MSG_ID_AUTOPILOT_VERSION) {
@@ -287,9 +304,136 @@ void MAVLink_Periph::handle_command_long(const mavlink_message_t &msg)
                 periph.prepare_reboot();
                 NVIC_SystemReset();
             }
+            break;
+        case MAV_CMD_PREFLIGHT_CALIBRATION:
+            {
+                // convert to mavlink_command_int_t
+                mavlink_command_int_t packet_int = {};
+                convert_command_long_to_command_int(packet, packet_int);
+                handle_command_preflight_calibration(packet_int, msg);
+            }
+            break;
+        case MAV_CMD_ACCELCAL_VEHICLE_POS:
+            {
+                // convert to mavlink_command_int_t
+                mavlink_command_int_t packet_int = {};
+                convert_command_long_to_command_int(packet, packet_int);
+                handle_command_accelcal_vehicle_pos(packet_int, msg);
+            }
+            break;
+        
+        case MAV_CMD_DO_START_MAG_CAL:
+        case MAV_CMD_DO_ACCEPT_MAG_CAL:
+        case MAV_CMD_DO_CANCEL_MAG_CAL:
+            {
+                // convert to mavlink_command_int_t
+                mavlink_command_int_t packet_int = {};
+                convert_command_long_to_command_int(packet, packet_int);
+                periph.compass.handle_mag_cal_command(packet_int);
+            }
         default:
             break;
     }
+}
+
+void MAVLink_Periph::handle_command_int(const mavlink_message_t &msg)
+{
+    // decode mavlink int
+    mavlink_command_int_t packet;
+    mavlink_msg_command_int_decode(&msg, &packet);
+    switch (packet.command) {
+        case MAV_CMD_PREFLIGHT_CALIBRATION:
+            handle_command_preflight_calibration(packet, msg);
+            break;
+        case MAV_CMD_ACCELCAL_VEHICLE_POS:
+            handle_command_accelcal_vehicle_pos(packet, msg);
+            break;
+        case MAV_CMD_DO_START_MAG_CAL:
+        case MAV_CMD_DO_ACCEPT_MAG_CAL:
+        case MAV_CMD_DO_CANCEL_MAG_CAL:
+            periph.compass.handle_mag_cal_command(packet);
+            break;
+        default:
+            break;
+    }
+}
+
+void MAVLink_Periph::handle_command_accelcal_vehicle_pos(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
+{
+    MAV_RESULT result = MAV_RESULT_ACCEPTED;
+    if (AP::ins().get_acal() == nullptr ||
+        !AP::ins().get_acal()->gcs_vehicle_position(packet.param1)) {
+        result = MAV_RESULT_FAILED;
+    }
+
+    mavlink_msg_command_ack_send(chan, packet.command, result,
+                                0, 0,
+                                msg.sysid,
+                                msg.compid);
+
+}
+
+void GCS_MAVLINK::handle_command_ack(const mavlink_message_t &msg)
+{
+    mavlink_command_ack_t packet;
+    mavlink_msg_command_ack_decode(&msg, &packet);
+
+    AP_AccelCal *accelcal = AP::ins().get_acal();
+    if (accelcal != nullptr) {
+        accelcal->handle_command_ack(packet);
+    }
+}
+
+void MAVLink_Periph::handle_command_preflight_calibration(const mavlink_command_int_t &packet, const mavlink_message_t &msg)
+{
+    if (packet.x == 1) {
+        periph.accel_cal_sysid = msg.sysid;
+        periph.accel_cal_compid = msg.compid;
+        periph.accel_cal_gcs = this;
+        periph.initialise_accel_cal = true;
+    } else {
+        mavlink_msg_command_ack_send(chan, packet.command, MAV_RESULT_UNSUPPORTED,
+                                    0, 0,
+                                    msg.sysid,
+                                    msg.compid);
+    }
+}
+
+
+static MAV_PARAM_TYPE mav_param_type(enum ap_var_type t)
+{
+    if (t == AP_PARAM_INT8) {
+	    return MAV_PARAM_TYPE_INT8;
+    }
+    if (t == AP_PARAM_INT16) {
+	    return MAV_PARAM_TYPE_INT16;
+    }
+    if (t == AP_PARAM_INT32) {
+	    return MAV_PARAM_TYPE_INT32;
+    }
+    // treat any others as float
+    return MAV_PARAM_TYPE_REAL32;
+}
+
+uint16_t MAVLink_Periph::send_compass_params()
+{
+    uint16_t index = 0;
+    // find all compass parameters
+    AP_Param *vp;
+    ap_var_type type;
+    char name[16];
+    do {
+        AP_Param::ParamToken token {};
+        vp = AP_Param::find_by_index(index, &type, &token);
+        // check if we have a compass parameter
+        if (vp != nullptr) {
+            vp->copy_name_token(token, name, sizeof(name));
+            if (strncmp(name, "COMPASS_", 8) == 0) {
+                mavlink_msg_param_value_send(chan, name, vp->cast_to_float(type), mav_param_type(vp->3,,,), vp->get_size(), index);
+            }
+        }
+    } while(vp != nullptr);
+    return index;
 }
 
 void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)
@@ -305,10 +449,16 @@ void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_HEARTBEAT:
         handle_odid_heartbeat(msg);
         break;
+    case MAVLINK_MSG_ID_COMMAND_ACK:
+        handle_command_ack(msg);
+        break;
     case MAVLINK_MSG_ID_PARAM_REQUEST_LIST:
+        {
+            uint32_t index = send_compass_params();
 #ifdef ENABLE_BASE_MODE
-        periph.gps_base.handle_param_request_list(msg);
+            periph.gps_base.handle_param_request_list(msg, index);
 #endif
+        }
         break;
     case MAVLINK_MSG_ID_PARAM_SET:
 #ifdef ENABLE_BASE_MODE
@@ -323,12 +473,47 @@ void MAVLink_Periph::handleMessage(const mavlink_message_t &msg)
     case MAVLINK_MSG_ID_COMMAND_LONG:
         handle_command_long(msg);
         break;
+    case MAVLINK_MSG_ID_COMMAND_INT:
+        handle_command_int(msg);
+        break;
     case MAVLINK_MSG_ID_AUTOPILOT_VERSION_REQUEST:
         send_version();
         break;
     default:
         break;
     }     // end switch
+}
+
+/*
+  send a text message to GCS
+ */
+void MAVLink_Periph::send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list)
+{
+    static uint16_t msgid = 0;
+    char buf[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN] = {};
+    vsnprintf(buf, sizeof(buf), fmt, arg_list);
+    msgid++;
+    mavlink_msg_statustext_send(chan, severity, buf, msgid, 0);
+}
+
+void MAVLink_Periph::send_text(MAV_SEVERITY severity, const char *fmt, ...)
+{
+    va_list arg_list;
+    va_start(arg_list, fmt);
+    send_textv(severity, fmt, arg_list);
+    va_end(arg_list);
+}
+
+void MAVLink_Periph::send_accelcal_vehicle_position(uint32_t position)
+{
+    mavlink_msg_command_long_send(
+        chan,
+        0,
+        0,
+        MAV_CMD_ACCELCAL_VEHICLE_POS,
+        0,
+        (float) position,
+        0, 0, 0, 0, 0, 0);
 }
 
 bool gcs_alternative_active[MAVLINK_COMM_NUM_BUFFERS];
@@ -411,8 +596,7 @@ void comm_send_unlock(mavlink_channel_t chan_m)
 }
 
 /*
-  return reference to GCS channel lock, allowing for
-  HAVE_PAYLOAD_SPACE() to be run with a locked channel
+  return reference to GCS channel lock
  */
 HAL_Semaphore &comm_chan_lock(mavlink_channel_t chan)
 {

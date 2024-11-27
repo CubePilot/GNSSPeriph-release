@@ -8,17 +8,31 @@ void AP_Periph_DroneCAN::can_imu_update(void)
 #if AP_INERTIALSENSOR_ENABLED
     auto &imu = periph.imu;
     while (true) {
-        imu.update();
+        if (periph.accel_cal_gcs && periph.initialise_accel_cal) {
+            can_printf("Starting accel cal\n");
+            // start with gyro calibration
+            if (!imu.calibrate_gyros()) {
+                periph.initialise_accel_cal = false;
+            }
+            // start accel cal
+            imu.acal_init();
+            imu.get_acal()->start(periph.accel_cal_gcs);
+            periph.initialise_accel_cal = false;
+            mavlink_msg_command_ack_send(periph.accel_cal_gcs->get_chan(), MAV_CMD_PREFLIGHT_CALIBRATION, MAV_RESULT_ACCEPTED,
+                                         0, 0,
+                                         periph.accel_cal_sysid,
+                                         periph.accel_cal_compid);
+        }
+        if (periph.accel_cal_gcs) {
+            imu.acal_update();
+        }
+        periph.ahrs.update();
 
         if (!imu.healthy()) {
             continue;
         }
 
         uavcan_equipment_ahrs_RawIMU pkt {};
-        if (imu.get_last_update_usec() == periph.last_imu_update_usec) {
-            return;
-        }
-
         Vector3f tmp;
         imu.get_delta_velocity(tmp, pkt.integration_interval);
         pkt.accelerometer_integral[0] = tmp.x;

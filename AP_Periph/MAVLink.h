@@ -17,6 +17,7 @@
 #include <AP_HAL/AP_HAL_Boards.h>
 
 #include <GCS_MAVLink/GCS_MAVLink.h>
+#include <AP_Param/AP_Param.h>
 
 /*
  *  GCS backend used for many examples and tools
@@ -32,15 +33,26 @@ public:
     uint32_t write(const uint8_t *tbuf, uint32_t len);
     mavlink_message_t* channel_buffer() { return &chan_buffer; }
     mavlink_status_t* channel_status() { return &chan_status; }
-    mavlink_channel_t get_channel() const { return chan; }
+    mavlink_channel_t get_chan() const { return chan; }
 
     bool process_byte(const uint8_t c);
     void send_version() const;
+
+    void send_text(MAV_SEVERITY severity, const char *fmt, ...) FMT_PRINTF(3, 4);
+    void send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list);
+    void send_accelcal_vehicle_position(uint32_t position);
+
 private:
     void handleMessage(const mavlink_message_t &msg);
     MAV_RESULT handle_preflight_reboot(const mavlink_command_long_t &packet);
     void handle_open_drone_id_arm_status(const mavlink_message_t &msg);
     void handle_command_long(const mavlink_message_t &msg);
+    void handle_command_int(const mavlink_message_t &msg);
+    void handle_command_preflight_calibration(const mavlink_command_int_t &packet, const mavlink_message_t &msg);
+    void handle_command_accelcal_vehicle_pos(const mavlink_command_int_t &packet, const mavlink_message_t &msg);
+    void handle_command_ack(const mavlink_message_t &msg);
+    uint16_t send_compass_params();
+
     uint8_t sysid_my_gcs() const;
 
     void handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg);

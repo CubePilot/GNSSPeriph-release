@@ -141,7 +141,8 @@ void AP_Periph_FW::init()
 #if AP_INERTIALSENSOR_ENABLED
     if (g.imu_sample_rate) {
         imu.init(g.imu_sample_rate);
-        hal.scheduler->thread_create(FUNCTOR_BIND(dronecan, &AP_Periph_DroneCAN::can_imu_update, void), "IMU_UPDATE", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
+        ahrs.init();
+        hal.scheduler->thread_create(FUNCTOR_BIND(dronecan, &AP_Periph_DroneCAN::can_imu_update, void), "IMU_UPDATE", 16384, AP_HAL::Scheduler::PRIORITY_CAN, 0);
     }
 #endif
 
@@ -311,6 +312,14 @@ void AP_Periph_FW::update()
         fiftyhz_last_update_ms = now;
         notify.update();
         mavlink.update();
+    }
+
+    static uint32_t tenhz_last_update_ms;
+    if (now - tenhz_last_update_ms >= 100) {
+        // update at 10Hz
+        tenhz_last_update_ms = now;
+        compass.send_mag_cal_progress(mavlink);
+        compass.send_mag_cal_report(mavlink);
     }
 
     rcout_update();
