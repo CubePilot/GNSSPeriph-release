@@ -1,5 +1,6 @@
 #include "AP_Periph.h"
 #include <AP_GPS/RTCM3_Parser.h>
+#include <AP_GPS/AP_GPS_UBLOX.h>
 
 #if 0
 #define Debug(...) do { hal.console->printf(__VA_ARGS__); } while(0)
@@ -170,14 +171,14 @@ void AP_Periph_DroneCAN::can_gps_update(void)
         if (gps.logging_present() && gps.logging_enabled() && !gps.logging_failed()) {
             status.status |= ARDUPILOT_GNSS_STATUS_STATUS_LOGGING;
         }
-        uint8_t idx; // unused
-        if (status.healthy && !gps.first_unconfigured_gps(idx)) {
-            status.status |= ARDUPILOT_GNSS_STATUS_STATUS_ARMABLE;
-        }
 
         uint32_t error_codes;
         if (gps.get_error_codes(error_codes)) {
             status.error_codes = error_codes;
+        }
+
+        if (status.healthy && !(error_codes & ~CONFIG_TP5)) {
+            status.status |= ARDUPILOT_GNSS_STATUS_STATUS_ARMABLE;
         }
 
         gnss_status_pub.broadcast(status);
