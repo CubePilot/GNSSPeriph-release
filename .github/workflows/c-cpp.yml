@@ -14,6 +14,10 @@ jobs:
     env:
       HERE3_CUBEID_TAG: v1.10
       HERE4_CUBEID_TAG: v1.10
+      ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+      ARTIFACTORY_USER: ${{ secrets.ARTIFACTORY_USER }}
+      ARTIFACTORY_TOKEN: ${{ secrets.ARTIFACTORY_TOKEN }}
+
     steps:
     - name: Install dependencies
       run: |
@@ -151,3 +155,38 @@ jobs:
         asset_name: GNSSPeriph.zip
         asset_path: GNSSPeriph.zip
         asset_content_type: application/zip
+
+    - name: Setup JFrog CLI
+      if: github.event_name == 'release'
+      run: |
+        curl -fL https://install-cli.jfrog.io | sh
+        jf config add --url="${ARTIFACTORY_URL}" --user="${ARTIFACTORY_USER}" --password="${ARTIFACTORY_TOKEN}" --interactive=false
+
+    - name: Upload to JFrog Artifactory
+      if: github.event_name == 'release'
+      run: |
+        # Extract version without 'v' prefix
+        VERSION=${GITHUB_REF_NAME#v}
+
+        # Upload files for Here3+
+        jf rt upload "release/Here3Plus_FW.bin" "generic-local/gnss-periph/Here3Plus/Here3Plus-${VERSION}.bin"
+        jf rt upload "release/Here3Plus_FW_with_bl.hex" "generic-local/gnss-periph/Here3Plus/Here3Plus-${VERSION}.hex"
+        jf rt upload "release/Here3Plus_FW.elf" "generic-local/gnss-periph/Here3Plus/Here3Plus-${VERSION}.elf"
+        jf rt upload "release/Here3+_FW.apj" "generic-local/gnss-periph/Here3Plus/Here3Plus-${VERSION}.apj"
+
+        # Upload files for Here4
+        jf rt upload "release/Here4_FW.bin" "generic-local/gnss-periph/Here4/Here4-${VERSION}.bin"
+        jf rt upload "release/Here4_FW_with_bl.hex" "generic-local/gnss-periph/Here4/Here4-${VERSION}.hex"
+        jf rt upload "release/Here4_FW.elf" "generic-local/gnss-periph/Here4/Here4-${VERSION}.elf"
+        jf rt upload "release/Here4_FW.apj" "generic-local/gnss-periph/Here4/Here4-${VERSION}.apj"
+
+        # Upload files for HerePro
+        jf rt upload "release/HerePro_FW.bin" "generic-local/gnss-periph/HerePro/HerePro-${VERSION}.bin"
+        jf rt upload "release/HerePro_FW_with_bl.hex" "generic-local/gnss-periph/HerePro/HerePro-${VERSION}.hex"
+        jf rt upload "release/HerePro_FW.elf" "generic-local/gnss-periph/HerePro/HerePro-${VERSION}.elf"
+        jf rt upload "release/HerePro_FW.apj" "generic-local/gnss-periph/HerePro/HerePro-${VERSION}.apj"
+
+        # Upload files for HereProAlpha
+        jf rt upload "release/HereProAlpha_FW.bin" "generic-local/gnss-periph/HereProAlpha/HereProAlpha-${VERSION}.bin"
+        jf rt upload "release/HereProAlpha_FW.elf" "generic-local/gnss-periph/HereProAlpha/HereProAlpha-${VERSION}.elf"
+        jf rt upload "release/HereProAlpha_FW.apj" "generic-local/gnss-periph/HereProAlpha/HereProAlpha-${VERSION}.apj"
