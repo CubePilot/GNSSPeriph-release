@@ -66,3 +66,5 @@ SERIAL_ORDER USART1 UART8
 
 define HAL_BOARD_INIT_HOOK_CALL  profiLED_reset_LEDs(4);
 define HAL_BOARD_INIT_HOOK_DEFINE void profiLED_reset_LEDs(uint32_t num_leds);
+
+CANFD_SUPPORTED 8

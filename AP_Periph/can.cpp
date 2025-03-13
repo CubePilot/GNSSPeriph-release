@@ -588,11 +588,11 @@ void AP_Periph_FW::can_start()
         instances[i].iface = can_iface_periph[i];
         instances[i].index = i;
         if (can_iface_periph[i] != nullptr) {
-            if (canfdout()) {
-                can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::NormalMode);
-            } else {
-                can_iface_periph[i]->init(g.can_baudrate[i], AP_HAL::CANIface::NormalMode);
-            }
+            // if (canfdout()) {
+            can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::NormalMode);
+            // } else {
+            //     can_iface_periph[i]->init(g.can_baudrate[i], AP_HAL::CANIface::NormalMode);
+            // }
             dronecan->canard_iface.add_interface(can_iface_periph[i]);
             dronecan->canard_iface.set_canfd(canfdout());
         }
