@@ -33,7 +33,7 @@
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
 
 static CanardInstance canard;
-static uint32_t canard_memory_pool[4096/4];
+static uint32_t canard_memory_pool[16384/4];
 #ifndef HAL_CAN_DEFAULT_NODE_ID
 #define HAL_CAN_DEFAULT_NODE_ID CANARD_BROADCAST_NODE_ID
 #endif
@@ -162,7 +162,11 @@ static void handle_get_node_info(CanardInstance* ins,
                            transfer->priority,
                            CanardResponse,
                            &buffer[0],
-                           total_size);
+                           total_size
+#if CANARD_ENABLE_CANFD
+                           ,false
+#endif
+                           );
 }
 
 /*
@@ -190,7 +194,11 @@ static bool send_fw_read(uint8_t idx)
                                CANARD_TRANSFER_PRIORITY_HIGH,
                                CanardRequest,
                                &buffer[0],
-                               total_size) > 0) {
+                               total_size
+#if CANARD_ENABLE_CANFD
+                               ,false
+#endif
+                            ) > 0) {
         // mark it as having been sent
         r.sent_ms = AP_HAL::millis();
         return true;
@@ -386,7 +394,11 @@ static void handle_begin_firmware_update(CanardInstance* ins, CanardRxTransfer* 
                            transfer->priority,
                            CanardResponse,
                            &buffer[0],
-                           total_size);
+                           total_size
+#if CANARD_ENABLE_CANFD
+                            ,false
+#endif
+                        );
 }
 
 static void handle_allocation_response(CanardInstance* ins, CanardRxTransfer* transfer)
@@ -570,6 +582,9 @@ static void processTx(void)
         txmsg.dlc = txf->data_len;
         memcpy(txmsg.data, txf->data, 8);
         txmsg.id = (txf->id | AP_HAL::CANFrame::FlagEFF);
+#if HAL_CANFD_SUPPORTED
+        txmsg.canfd = false;
+#endif
         // push message with 1s timeout
         bool send_ok = false;
         for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
@@ -612,9 +627,12 @@ static void processRx(void)
             uint64_t timestamp;
             AP_HAL::CANIface::CanIOFlags flags;
             can_iface[i].receive(rxmsg, timestamp, flags);
-            memcpy(rx_frame.data, rxmsg.data, 8);
-            rx_frame.data_len = rxmsg.dlc;
+            rx_frame.data_len = AP_HAL::CANFrame::dlcToDataLength(rxmsg.dlc);
+            memcpy(rx_frame.data, rxmsg.data, rx_frame.data_len);
             rx_frame.id = rxmsg.id;
+#if HAL_CANFD_SUPPORTED
+            rx_frame.canfd = rxmsg.canfd;
+#endif
             canardHandleRxFrame(&canard, &rx_frame, timestamp);
             got_pkt = true;
         }
@@ -669,7 +687,11 @@ static void can_handle_DNA(void)
                     &node_id_allocation_transfer_id,
                     CANARD_TRANSFER_PRIORITY_LOW,
                     &allocation_request[0],
-                    (uint16_t) (uid_size + 1));
+                    (uint16_t) (uid_size + 1)
+#if CANARD_ENABLE_CANFD
+                    ,false
+#endif
+                );
 
     // Preparing for timeout; if response is received, this value will be updated from the callback.
     node_id_allocation_unique_id_offset = 0;
@@ -690,7 +712,11 @@ static void send_node_status(void)
                     &transfer_id,
                     CANARD_TRANSFER_PRIORITY_LOW,
                     buffer,
-                    len);
+                    len
+#if CANARD_ENABLE_CANFD
+                    ,false
+#endif
+                );
 }
 
 
@@ -791,7 +817,11 @@ void can_start()
     canStart(&CAND1, &cancfg);
 #else
     for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
-        can_iface[i].init(baudrate, AP_HAL::CANIface::NormalMode);
+        can_iface[i].init(baudrate,
+#if HAL_CANFD_SUPPORTED
+        HAL_CANFD_SUPPORTED*1000000,
+#endif
+        AP_HAL::CANIface::NormalMode);
     }
 #endif
     canardInit(&canard, (uint8_t *)canard_memory_pool, sizeof(canard_memory_pool),
