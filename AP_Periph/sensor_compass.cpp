@@ -1,5 +1,9 @@
 #include "AP_Periph.h"
 
+#ifndef SENSOR_ID_OFFSET
+#define SENSOR_ID_OFFSET 0
+#endif 
+
 /*
   update CAN magnetometer
  */
@@ -29,7 +33,7 @@ void AP_Periph_DroneCAN::can_mag_update(void)
         }
         periph.last_mag_update_ms[i] = compass.last_update_ms(i);
         const Vector3f &field = compass.get_field(i);
-        pkt.sensor_id = i;
+        pkt.sensor_id = SENSOR_ID_OFFSET + i;
         for (uint8_t j=0; j<3; j++) {
             pkt.magnetic_field_ga[j] = field[j] * 0.001;
         }
