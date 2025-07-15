@@ -1,0 +1,208 @@
+# hw definition file for processing by chibios_hwdef.py
+# for H757 bootloader
+
+# MCU class and specific type
+MCU STM32H7xx STM32H757xx
+
+
+define CORE_CM7
+define SMPS_PWR
+
+define HAL_BUILD_AP_PERIPH
+
+# board ID for firmware load
+APJ_BOARD_ID 1099
+
+# setup build for a peripheral firmware
+env AP_PERIPH 1
+
+FLASH_SIZE_KB 2048
+
+# the location where the bootloader will put the firmware
+# the H757 has 128k sectors, assign 2 sectors for BL
+FLASH_BOOTLOADER_LOAD_KB 256
+FLASH_RESERVE_START_KB 256
+
+# use last 2 pages for flash storage
+# H757 has 16 pages of 128k each
+STORAGE_FLASH_PAGE 14
+define HAL_STORAGE_SIZE 32768
+
+# reserve space for flash storage in last 2 sectors
+FLASH_RESERVE_END_KB 256
+
+# crystal frequency
+OSCILLATOR_HZ 24000000
+
+# CAN1
+PD0 CAN1_RX CAN1
+PD1 CAN1_TX CAN1
+
+# CAN2
+PB5    CAN2_RX    CAN2
+PB6    CAN2_TX    CAN2
+
+PE7 UART7_RX UART7
+PE8 UART7_TX UART7
+
+# board voltage
+STM32_VDD 330U
+
+PC6 USART6_TX USART6
+PC7 USART6_RX USART6
+
+PB7 USART1_RX USART1
+PB14 USART1_TX USART1
+
+PE0 UART8_RX UART8
+PE1 UART8_TX UART8
+
+SERIAL_ORDER USART1 UART7 UART8 USART6
+
+# CAN Common
+PG1 SLEEPCAN OUTPUT PUSHPULL SPEED_LOW LOW 
+PG0 SHUTDOWNCAN OUTPUT PUSHPULL SPEED_LOW LOW
+
+# These are the pins for SWD debugging with a STlinkv2 or black-magic probe.
+PA13 JTMS-SWDIO SWD
+PA14 JTCK-SWCLK SWD
+
+define CAN_APP_NODE_NAME "com.cubepilot.here5"
+
+CANFD_SUPPORTED 8
+
+#define HAL_LED_ON 0
+
+PC10 SPI3_SCK SPI3
+PC11 SPI3_MISO SPI3
+PC12 SPI3_MOSI SPI3
+PA6 MAG_CS CS SPEED_VERYLOW
+
+PG15 IMU1_CS CS SPEED_VERYLOW
+
+SPIDEV icm42688  SPI3 DEVID1  IMU1_CS MODE3  2*MHZ  8*MHZ
+IMU Invensensev3 SPI:icm42688 ROTATION_NONE
+
+SPIDEV rm3100 SPI3 DEVID2    MAG_CS MODE0  1*MHZ  1*MHZ
+COMPASS RM3100 SPI:rm3100 false ROTATION_NONE
+define AP_RM3100_REVERSAL_MASK 4
+
+define GPS_MAX_RECEIVERS 1
+define GPS_MAX_INSTANCES 1
+define HAL_COMPASS_MAX_SENSORS 1
+
+define HAL_PERIPH_ENABLE_RTC 1
+define HAL_PERIPH_ENABLE_RC_OUT 1
+define HAL_PERIPH_ENABLE_NOTIFY 1
+define HAL_PERIPH_ENABLE_GPS 1
+define HAL_PERIPH_ENABLE_MAG 1
+define GPS_MOVING_BASELINE 1
+
+#define I2C_SLAVE_ENABLED
+
+#define HAL_NO_MONITOR_THREAD
+
+# override following defines as needed
+define HAL_USE_ADC FALSE
+STORAGE_FLASH_PAGE 14
+define HAL_STORAGE_SIZE 32768
+
+# Ethernet
+PC1  ETH_MDC            ETH1
+PA2  ETH_MDIO           ETH1
+PC4  ETH_RMII_RXD0      ETH1
+PC5  ETH_RMII_RXD1      ETH1
+PB12 ETH_RMII_TXD0      ETH1
+PB13 ETH_RMII_TXD1      ETH1
+PB11 ETH_RMII_TX_EN     ETH1
+PA7  ETH_RMII_CRS_DV    ETH1
+PA1  ETH_RMII_REF_CLK   ETH1
+
+define BOARD_PHY_ID  MII_LAN8720_ID
+define BOARD_PHY_RMII
+define HAL_PERIPH_ENABLE_NETWORKING
+
+# ---------------------------------------------------------------------------------------------
+# AP_Periph - boiler-plate configurations that all HW AP-Periph need
+# ---------------------------------------------------------------------------------------------
+#define HAL_NO_RCIN_THREAD
+#define HAL_NO_GPIO_IRQ
+#define HAL_DISABLE_LOOP_DELAY
+
+#################################
+# AP_Periph - configurations specific to this App
+#################################
+
+define HAL_BARO_ALLOW_INIT_NO_BARO
+define AP_INERTIALSENSOR_ENABLED 0
+
+define AP_NETWORKING_MAX_INSTANCES 4
+
+define AP_SCRIPTING_ENABLED 0
+define AP_FILESYSTEM_ROMFS_ENABLED 1
+
+# listen for reboot command from uploader.py script
+# undefine to disable. Use -1 to allow on all ports, otherwise serial number index defined in SERIAL_ORDER starting at 0
+#define HAL_PERIPH_LISTEN_FOR_SERIAL_UART_REBOOT_CMD_PORT 0
+#################################
+
+#undef COMPASS
+
+PF14 I2C4_SCL I2C4
+PF15 I2C4_SDA I2C4
+
+PA10 sharedpa8 INPUT
+PA8 I2C3_SCL I2C3
+PC9 I2C3_SDA I2C3
+
+I2C_ORDER I2C4 I2C3
+
+COMPASS AK09916 I2C:1:0x0C false ROTATION_NONE
+
+# set an offset for the sensor ID
+# this is used to differentiate between the two compasses
+# on the Here4 and Here4AKM boards and force recalibration
+#define SENSOR_ID_OFFSET 1
+
+# analog input
+define HAL_USE_ADC FALSE
+define STM32_ADC_USE_ADC1 FALSE
+define HAL_DISABLE_ADC_DRIVER TRUE
+
+define HAL_INS_ACCELCAL_ENABLED FALSE
+
+#rf path select
+PF12 RFPATH INPUT 
+#OUTPUT PUSHPULL LOW
+PF11 GEOFENCE INPUT
+PC0 F9TXREADY INPUT
+PD12 HOTSHOE INPUT
+PE6 F9RSV2 INPUT
+PB0 F9RSV1 INPUT
+PC8 GPS_PPS INPUT PULLUP GPIO(6)
+PC2 F9RTK INPUT
+PC3 F9RESETN INPUT
+PF3 F9TP1 INPUT
+PF5 F9TP2 INPUT
+
+PE2 GCAN1TERM OUTPUT HIGH
+PE10 GCAN2TERM OUTPUT HIGH
+
+define CONFIGURE_PPS_PIN TRUE
+define HAL_GPIO_PPS 6
+
+define AP_GPS_UBLOX_DEFAULT_BAUDRATE 460800
+
+
+define HAL_LED_ON 0
+define AP_SERIALLED_ENABLED 1
+
+# WS2812 LED
+PD14 TIM4_CH3 TIM4 PWM(1)
+PD15 TIM4_CH4 TIM4 PWM(2)
+
+define SRV_LED_CLK_CHANNEL 1
+define SRV_LED_CLK_FUNCTION SRV_Channel::k_ProfiLED_Clock
+define SRV_LED_DATA_CHANNEL 2
+define SRV_LED_DATA_FUNCTION SRV_Channel::k_ProfiLED_1
+
