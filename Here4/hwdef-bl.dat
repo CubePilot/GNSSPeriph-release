@@ -11,7 +11,7 @@ define SMPS_PWR
 env AP_PERIPH 1
 
 # crystal frequency
-OSCILLATOR_HZ 24000000
+OSCILLATOR_HZ 0
 
 # board ID for firmware load
 APJ_BOARD_ID 1043
