@@ -147,9 +147,17 @@ define GPIO_UBX_RESET 12
 
 define AP_FILESYSTEM_ROMFS_ENABLED 1
 
+# embed fallback bootloader for flashing support
+ROMFS fallback_bootloader.bin Tools/bootloaders/Here4_fallback_bl.bin
+
 define AP_SERIALLED_ENABLED 1
 
 # enable LUA Script
 #define AP_SCRIPTING_ENABLED 1
 #define HAL_EFI_ENABLED 0
 define HAL_GCS_ENABLED 0
+
+// Clock and power setting is handled by the bootloader
+// including HSE clock fallback to HSI
+define STM32_NO_INIT TRUE
+define HAL_CANFD_CCU_ENABLED 1
