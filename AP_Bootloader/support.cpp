@@ -78,9 +78,13 @@ void cout(uint8_t *data, uint32_t len)
 }
 #endif // BOOTLOADER_DEV_LIST
 
-static uint32_t flash_base_page;
+#ifndef FLASH_BASE_PAGE_OFFSET
+#define FLASH_BASE_PAGE_OFFSET 0
+#endif
+
+static uint32_t flash_base_page = FLASH_BASE_PAGE_OFFSET;
 static uint16_t num_pages;
-static const uint8_t *flash_base = (const uint8_t *)(0x08000000 + (FLASH_BOOTLOADER_LOAD_KB + APP_START_OFFSET_KB)*1024U);
+static const uint8_t *flash_base = (const uint8_t *)(FLASH_LOAD_ADDRESS + (FLASH_BOOTLOADER_LOAD_KB + APP_START_OFFSET_KB)*1024U);
 
 /*
   initialise flash_base_page and num_pages

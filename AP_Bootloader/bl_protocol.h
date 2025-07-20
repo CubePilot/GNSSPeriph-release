@@ -1,4 +1,6 @@
 void jump_to_app(void);
+void jump_to_fallback(void);
+void jump_to_address(uint32_t address, bool watchdog_enabled, bool send_comms);
 void bootloader(unsigned timeout);
 
 /*****************************************************************************

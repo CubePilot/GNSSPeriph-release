@@ -743,7 +743,7 @@ bool can_check_update(void)
 {
     bool ret = false;
 #if HAL_RAM_RESERVE_START >= 256
-    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)HAL_RAM0_START;
+    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
     // Ensure the data is flushed into RAM
     cacheBufferFlush(comms, sizeof(struct app_bootloader_comms));
     if (comms->magic == APP_BOOTLOADER_COMMS_MAGIC) {
@@ -821,8 +821,20 @@ void can_start()
 #if HAL_CANFD_SUPPORTED
         HAL_CANFD_SUPPORTED*1000000,
 #endif
-        AP_HAL::CANIface::NormalMode);
+#if defined(HAL_CANFD_CCU_ENABLED) && HAL_CANFD_CCU_ENABLED
+        AP_HAL::CANIface::CCUNormalMode
+#else
+        AP_HAL::CANIface::NormalMode
+#endif
+        );
     }
+
+#if defined(HAL_CANFD_CCU_ENABLED) && HAL_CANFD_CCU_ENABLED
+    // Wait for basic calibration to complete (1 second timeout for bootloader)
+    while (!can_iface[0].waitForBasicCalibration(1000)) {}
+    can_iface[0].setupClockCalibrationMsg(10 | AP_HAL::CANFrame::FlagEFF, 0x7F);
+#endif
+
 #endif
     canardInit(&canard, (uint8_t *)canard_memory_pool, sizeof(canard_memory_pool),
                onTransferReceived, shouldAcceptTransfer, NULL);
@@ -870,8 +882,13 @@ static struct profiLED_color_s color_func(uint8_t led_idx)
         last_finish_breath_time = curr_time;
     }
     color.b = blue/3;
+#if defined(HAL_BOOTLOADER_FALLBACK) && HAL_BOOTLOADER_FALLBACK
+    color.g = 0;
+    color.r = 0;
+#else
     color.g = blue/3;
     color.r = blue/3;
+#endif
     return color;
 }
 

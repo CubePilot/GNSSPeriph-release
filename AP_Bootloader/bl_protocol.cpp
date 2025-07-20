@@ -49,6 +49,7 @@
 #include "bl_protocol.h"
 #include "support.h"
 #include "can.h"
+#include "app_comms.h"
 #include <AP_HAL_ChibiOS/hwdef/common/watchdog.h>
 #if EXT_FLASH_SIZE_MB
 #include <AP_FlashIface/AP_FlashIface_JEDEC.h>
@@ -229,15 +230,32 @@ do_jump(uint32_t stacktop, uint32_t entrypoint)
 #define APP_START_ADDRESS (FLASH_LOAD_ADDRESS + (FLASH_BOOTLOADER_LOAD_KB + APP_START_OFFSET_KB)*1024U)
 #endif
 
+void jump_to_app(void)
+{
+    jump_to_address(APP_START_ADDRESS, true, true);
+}
+
+#if !defined(HAL_BOOTLOADER_FALLBACK) || !HAL_BOOTLOADER_FALLBACK
+void jump_to_fallback(void)
+{
+    jump_to_address(FLASH_LOAD_ADDRESS + FLASH_BOOTLOADER_LOAD_KB*1024U, false, false);
+}
+#endif
+
 void
-jump_to_app()
+jump_to_address(uint32_t addr, bool watchdog_enabled, bool send_comms)
 {
 #ifdef HAL_GPIO_PIN_LED_SCK
     // Reset LEDs
     profiLED_reset_LEDs(4);
 #endif
-    const uint32_t *app_base = (const uint32_t *)(APP_START_ADDRESS);
+    const uint32_t *app_base = (const uint32_t *)(addr);
 
+    if (send_comms) {
+        struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
+        comms->magic = APP_BOOTLOADER_COMMS_MAGIC;
+        comms->fallback_bl = IS_FALLBACK_BL;
+    }
     // If we have QSPI chip start it
 #if EXT_FLASH_SIZE_MB
     uint8_t* ext_flash_start_addr;
@@ -260,16 +278,16 @@ jump_to_app()
      * The second word of the app is the entrypoint; it must point within the
      * flash area (or we have a bad flash).
      */
-    if (app_base[1] < APP_START_ADDRESS) {
+    if (app_base[1] < addr) {
         goto exit;
     }
 
 #if BOOT_FROM_EXT_FLASH
-    if (app_base[1] >= (APP_START_ADDRESS + board_info.extf_size)) {
+    if (app_base[1] >= (addr + board_info.extf_size)) {
         goto exit;
     }
 #else
-    if (app_base[1] >= (APP_START_ADDRESS + board_info.fw_size)) {
+    if (app_base[1] >= (addr + board_info.fw_size)) {
         goto exit;
     }
 #endif
@@ -281,7 +299,9 @@ jump_to_app()
     // indicate that it has been running OK for 30s then we will stay
     // in bootloader
 #ifndef DISABLE_WATCHDOG
-    stm32_watchdog_init();
+    if (watchdog_enabled) {
+        stm32_watchdog_init();
+    }
 #endif
     stm32_watchdog_pat();
 #endif
@@ -315,7 +335,7 @@ jump_to_app()
     port_disable();
 
     /* switch exception handlers to the application */
-    *(volatile uint32_t *)SCB_VTOR = APP_START_ADDRESS;
+    *(volatile uint32_t *)SCB_VTOR = addr;
 
     /* extract the stack and entrypoint from the app vector table and go */
     do_jump(app_base[0], app_base[1]);
