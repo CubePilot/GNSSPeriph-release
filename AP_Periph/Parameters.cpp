@@ -87,7 +87,7 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Description: Debug
     // @Bitmask: 0:Show free stack space, 2:Enable sending stats, 3: Show serial stats
     // @User: Advanced
-    GSCALAR(debug, "DEBUG", 0),
+    GSCALAR(debug, "DEBUG", 4),
 
     // @Param: BRD_SERIAL_NUM
     // @DisplayName: Serial number of device
