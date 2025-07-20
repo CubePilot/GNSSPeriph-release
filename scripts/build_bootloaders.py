@@ -60,6 +60,10 @@ def get_board_list():
             if args.periph_only and not is_ap_periph(hwdef):
                 continue
             board_list.append(d)
+            # Check if fallback bootloader exists
+            hwdef_fallback = os.path.join(dirname, d, 'hwdef-bl-fallback.dat')
+            if os.path.exists(hwdef_fallback):
+                board_list.append(d + '_fallback')
     return board_list
 
 def run_program(cmd_list):
@@ -71,8 +75,14 @@ def run_program(cmd_list):
     return True
 
 def build_board(board):
-    configure_args = "--board %s -g --bootloader --no-submodule-update --Werror" % board
+    # Check if this is a fallback bootloader build
+    is_fallback = board.endswith('_fallback')
+    actual_board = board.replace('_fallback', '') if is_fallback else board
+    
+    configure_args = "--board %s -g --bootloader --no-submodule-update --Werror" % actual_board
     configure_args = configure_args.split()
+    if is_fallback:
+        configure_args.append("--bootloader-fallback")
     if args.signing_key is not None:
         print("Building secure bootloader")
         configure_args.append("--signed-fw")
@@ -88,18 +98,39 @@ def build_board(board):
     return True
 
 for board in get_board_list():
-    if not fnmatch.fnmatch(board, args.pattern):
+    # Special handling: if pattern matches base board name, also include fallback variant
+    board_matches = fnmatch.fnmatch(board, args.pattern)
+    if not board_matches:
+        # Check if this is a fallback board and the pattern matches the base board
+        if board.endswith('_fallback'):
+            base_board = board.replace('_fallback', '')
+            if fnmatch.fnmatch(base_board, args.pattern):
+                board_matches = True
+    
+    if not board_matches:
         continue
     print("Building for %s" % board)
+    
+    # Check if this is a fallback bootloader build
+    is_fallback = board.endswith('_fallback')
+    actual_board = board.replace('_fallback', '') if is_fallback else board
+    
     if not build_board(board):
         failed_boards.add(board)
         continue
-    bl_file = 'bootloaders/%s_bl.bin' % board
-    hex_file = 'bootloaders/%s_bl.hex' % board
-    elf_file = 'bootloaders/%s_bl.elf' % board
-    shutil.copy('build/%s/bin/AP_Bootloader.bin' % board, bl_file)
+    
+    if is_fallback:
+        bl_file = 'bootloaders/%s_fallback_bl.bin' % actual_board
+        hex_file = 'bootloaders/%s_fallback_bl.hex' % actual_board
+        elf_file = 'bootloaders/%s_fallback_bl.elf' % actual_board
+    else:
+        bl_file = 'bootloaders/%s_bl.bin' % board
+        hex_file = 'bootloaders/%s_bl.hex' % board
+        elf_file = 'bootloaders/%s_bl.elf' % board
+    source_file = 'build/%s/bin/AP_Bootloader.bin' % actual_board
+    shutil.copy(source_file, bl_file)
     print("Created %s" % bl_file)
-    shutil.copy('build/%s/bootloader/AP_Bootloader' % board, elf_file)
+    shutil.copy('build/%s/bootloader/AP_Bootloader' % actual_board, elf_file)
     print("Created %s" % elf_file)
     if args.signing_key is not None:
         print("Signing bootloader with %s" % args.signing_key)
@@ -109,7 +140,8 @@ for board in get_board_list():
         if not run_program(["./ardupilot/Tools/scripts/signing/make_secure_bl.py", elf_file, args.signing_key]):
             print("Failed to sign ELF bootloader for %s" % board)
             sys.exit(1)
-    if not run_program([sys.executable, "ardupilot/Tools/scripts/bin2hex.py", "--offset", "0x08000000", bl_file, hex_file]):
+    bl_addr = '0x08000000' if not is_fallback else '0x08020000'
+    if not run_program([sys.executable, "ardupilot/Tools/scripts/bin2hex.py", "--offset", bl_addr, bl_file, hex_file]):
         failed_boards.add(board)
         continue
     print("Created %s" % hex_file)
