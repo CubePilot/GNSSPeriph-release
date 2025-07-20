@@ -243,6 +243,8 @@ public:
     bool gps_in_safeboot;
 #endif
 
+    bool is_fallback_bl;
+
     ObjectBuffer<uavcan_protocol_debug_LogMessage> log_buffer{20};
 
     ExpandingString uart_info;

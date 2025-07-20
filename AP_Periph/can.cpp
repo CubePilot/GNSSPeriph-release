@@ -28,7 +28,7 @@
 #include <AP_HAL/utility/RingBuffer.h>
 #include <AP_Common/AP_FWVersion.h>
 #include <dronecan_msgs.h>
-
+#include <GCS_MAVLink/GCS.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
 #include <hal.h>
 
@@ -299,7 +299,7 @@ void AP_Periph_DroneCAN::handle_begin_firmware_update(const CanardRxTransfer& tr
 {
 #if HAL_RAM_RESERVE_START >= 256
     // setup information on firmware request at start of ram
-    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)HAL_RAM0_START;
+    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
     memset(comms, 0, sizeof(struct app_bootloader_comms));
     comms->magic = APP_BOOTLOADER_COMMS_MAGIC;
     comms->server_node_id = req.source_node_id;
@@ -365,6 +365,7 @@ void AP_Periph_DroneCAN::handle_allocation_response(const CanardRxTransfer& tran
         // Allocation complete - copying the allocated node ID from the message
         // canardSetLocalNodeID(ins, msg.node_id);
         periph.dronecan->canard_iface.set_node_id(msg.node_id);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Running Node with %s bootloader\n", periph.is_fallback_bl ? "fallback" : "main");
     }
 }
 
@@ -583,13 +584,25 @@ void AP_Periph_FW::can_start()
         AP_HAL::panic("Failed to allocate dronecan");
     }
 
+    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
+    if (comms->magic == APP_BOOTLOADER_COMMS_MAGIC) {
+        is_fallback_bl = comms->fallback_bl;
+    }
+
     for (uint8_t i=0; i<HAL_NUM_CAN_IFACES; i++) {
         can_iface_periph[i] = new ChibiOS::CANIface();
         instances[i].iface = can_iface_periph[i];
         instances[i].index = i;
         if (can_iface_periph[i] != nullptr) {
             // if (canfdout()) {
-            can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::NormalMode);
+#if HAL_CANFD_CCU_ENABLED
+            if (i == 0) {
+                can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::CCUNormalMode);
+            } else
+#endif
+            {
+                can_iface_periph[i]->init(g.can_baudrate[i], g.can_fdbaudrate[i], AP_HAL::CANIface::NormalMode);
+            }
             // } else {
             //     can_iface_periph[i]->init(g.can_baudrate[i], AP_HAL::CANIface::NormalMode);
             // }
@@ -605,6 +618,14 @@ void AP_Periph_FW::can_start()
             periph.can_iface_periph[i]->set_track_tx_timestamp((0xFFFFLU << 8), ((uint32_t)UAVCAN_PROTOCOL_GLOBALTIMESYNC_ID)<<8);
         }
     }
+
+#if HAL_CANFD_CCU_ENABLED
+    if (can_iface_periph[0] != nullptr) {
+        // Wait for basic calibration to complete (1 second timeout for bootloader)
+        while (!can_iface_periph[0]->waitForBasicCalibration(1000)) { }
+        can_iface_periph[0]->setupClockCalibrationMsg(10 | AP_HAL::CANFrame::FlagEFF, 0x7F);
+    }
+#endif // HAL_CANFD_CCU_ENABLED
 }
 
 uint64_t AP_Periph_FW::get_tracked_tx_timestamp(uint8_t i)
