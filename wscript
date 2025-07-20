@@ -6,9 +6,6 @@ from __future__ import print_function
 import os.path
 import os
 import sys
-import subprocess
-import json
-import fnmatch
 import shutil
 sys.path.insert(0, 'ardupilot/Tools/ardupilotwaf/')
 sys.path.insert(0, '.')
@@ -33,8 +30,23 @@ def handle_here4akm():
         # create symlink
         os.symlink(here4_defaults_realpath, here4akm_defaults_path)
 
+def create_bl_hwdef(cfg, realpath, dirname):
+    # check if directory contains hwdef-bl-main.dat and hwdef-bl-fallback.dat
+    if os.path.isfile(os.path.join(realpath, 'hwdef-bl-main.dat')):
+        # Only create/update symlinks during configure and build phases, not options
+        if not hasattr(cfg, 'options') or not hasattr(cfg.options, 'bootloader_fallback'):
+            return
+        if cfg.options.bootloader_fallback:
+            print('Using hwdef-bl-fallback.dat for {}'.format(dirname))
+            shutil.copy(os.path.join(realpath, 'hwdef-bl-fallback.dat'),
+                os.path.join(realpath, 'hwdef-bl.dat'))
+        else:
+            print('Using hwdef-bl-main.dat for {}'.format(dirname))
+            shutil.copy(os.path.join(realpath, 'hwdef-bl-main.dat'),
+                        os.path.join(realpath, 'hwdef-bl.dat'))
 
-def copy_local_hwdef():
+def copy_local_hwdef(cfg, copy_bl_hwdef=False):
+    print('Copying local hwdef directories')
     # find all folders containing hwdef.dat in current directory
     hwdef_folders = []
     dirname, dirlist, filenames = next(os.walk('.'))
@@ -48,6 +60,8 @@ def copy_local_hwdef():
             continue
         # check if symlink exists
         realpath = os.path.realpath(os.path.join(dirname, dir))
+        if copy_bl_hwdef:
+            create_bl_hwdef(cfg, realpath, dir)
         if os.path.islink(os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir)):
             # check if symlink points to correct directory
             if os.path.realpath(os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir)) == realpath:
@@ -72,20 +86,26 @@ def copy_local_hwdef():
             os.remove(os.path.join('ardupilot/Tools/bootloaders', file))
         # copy file
         shutil.copy(realpath, os.path.join('ardupilot/Tools/bootloaders', file))
+    print('Local hwdef directories copied')
 
 def options(opt):
     opt.parser.set_defaults(top='ardupilot')
-    copy_local_hwdef()
+    copy_local_hwdef(opt)
     os.chdir('ardupilot')
     try:
         opt.recurse('ardupilot/')
     except Exception as e:
         os.chdir('..')
         raise e
+
+    opt.ap_groups['configure'].add_option('--bootloader-fallback',
+                  action='store_true',
+                  default=False,
+                  help='use bootloader fallback for hardware definitions')
     os.chdir('..')
 
 def configure(cfg):
-    copy_local_hwdef()
+    copy_local_hwdef(cfg, True)
     os.chdir('ardupilot')
     try:
         cfg.recurse('ardupilot/')
@@ -96,7 +116,7 @@ def configure(cfg):
     cfg.load('wscript_git')
 
 def build(bld):
-    copy_local_hwdef()
+    copy_local_hwdef(bld)
     bld.env = bld.env_of_name(bld.env.BOARD)
     bld.bldnode = bld.bldnode.make_node(bld.env.BOARD)
     os.chdir('ardupilot')
