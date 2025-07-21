@@ -1,4 +1,5 @@
 #include "AP_Periph.h"
+#include <AP_HAL_ChibiOS/CANFDIface.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -75,11 +76,12 @@ void AP_Periph_FW::update_rainbow()
     if (now - last_update_ms < step_ms) {
         return;
     }
-    const struct {
+    struct color {
         uint8_t red;
         uint8_t green;
         uint8_t blue;
-    } rgb_rainbow[] = {
+    };
+    const color rgb_rainbow[] = {
         { 255, 0, 0 },
         { 255, 127, 0 },
         { 255, 255, 0 },
@@ -89,15 +91,46 @@ void AP_Periph_FW::update_rainbow()
         { 143, 0,   255 },
         { 0,   0,   0 },
     };
+
     last_update_ms = now;
     static uint8_t step;
-    const uint8_t nsteps = ARRAY_SIZE(rgb_rainbow);
-    float brightness = (hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : notify.get_rgb_led_brightness_percent()) * 0.01f;
-    for (uint8_t n=0; n<4; n++) {
-        uint8_t i = (step + n) % nsteps;
-        notify.handle_rgb(rgb_rainbow[i].red*brightness,
-                                 rgb_rainbow[i].green*brightness,
-                                 rgb_rainbow[i].blue*brightness);
+#if defined(HAL_CANFD_CCU_ENABLED) && HAL_CANFD_CCU_ENABLED
+    const color amber_breathing[] = {
+        { 191, 0, 191 },
+        { 127, 0, 127 },
+        { 63, 0, 63 },
+        { 31, 0, 31 },
+        { 15, 0, 15 },
+        { 7, 0, 7 },
+        { 0, 0, 0 },
+        { 7, 0, 7 },
+        { 15, 0, 15 },
+        { 31, 0, 31 },
+        { 63, 0, 63 },
+        { 127, 0, 127 },
+        { 191, 0, 191 }
+    };
+    if (AP_Periph_FW::can_iface_periph[0] != nullptr && !AP_Periph_FW::can_iface_periph[0]->is_precise_calibration_complete()) {
+        // use amber breathing pattern
+        const uint8_t nsteps = ARRAY_SIZE(amber_breathing);
+        float brightness = (hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : notify.get_rgb_led_brightness_percent()) * 0.01f;
+        for (uint8_t n=0; n<4; n++) {
+            uint8_t i = (step + n) % nsteps;
+            notify.handle_rgb(amber_breathing[i].red*brightness,
+                                    amber_breathing[i].green*brightness,
+                                    amber_breathing[i].blue*brightness);
+        }
+    } else
+#endif
+    {
+        const uint8_t nsteps = ARRAY_SIZE(rgb_rainbow);
+        float brightness = (hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : notify.get_rgb_led_brightness_percent()) * 0.01f;
+        for (uint8_t n=0; n<4; n++) {
+            uint8_t i = (step + n) % nsteps;
+            notify.handle_rgb(rgb_rainbow[i].red*brightness,
+                                    rgb_rainbow[i].green*brightness,
+                                    rgb_rainbow[i].blue*brightness);
+        }
     }
     step++;
 }

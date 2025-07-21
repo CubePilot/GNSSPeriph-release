@@ -621,9 +621,8 @@ void AP_Periph_FW::can_start()
 
 #if HAL_CANFD_CCU_ENABLED
     if (can_iface_periph[0] != nullptr) {
-        // Wait for basic calibration to complete (1 second timeout for bootloader)
-        while (!can_iface_periph[0]->waitForBasicCalibration(1000)) { }
-        can_iface_periph[0]->setupClockCalibrationMsg(10 | AP_HAL::CANFrame::FlagEFF, 0x7F);
+        // we rely on Node Status message for clock calibration
+        can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
     }
 #endif // HAL_CANFD_CCU_ENABLED
 }
