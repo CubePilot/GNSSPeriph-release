@@ -7,7 +7,7 @@
 #include "ap_version.h"
 #include <AP_HAL/AP_HAL.h>
 
-#define THISFIRMWARE "GNSSPeriph V1.14.0"
+#define THISFIRMWARE "GNSSPeriph V1.15.0"
 
 // defines needed due to lack of GCS includes
 #ifndef HAVE_ENUM_FIRMWARE_VERSION_TYPE
@@ -17,10 +17,10 @@
 #endif
 
 // the following line is parsed by the autotest scripts
-#define FIRMWARE_VERSION 1,14,0,FIRMWARE_VERSION_TYPE_DEV
+#define FIRMWARE_VERSION 1,15,0,FIRMWARE_VERSION_TYPE_DEV
 
 #define FW_MAJOR 1
-#define FW_MINOR 14
+#define FW_MINOR 15
 #define FW_PATCH 0
 #define FW_TYPE FIRMWARE_VERSION_TYPE_DEV
 
