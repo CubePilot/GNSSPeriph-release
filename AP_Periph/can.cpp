@@ -681,7 +681,7 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     static_temperature_pub.set_timeout_ms(20);
 
     log_pub.set_priority(CANARD_TRANSFER_PRIORITY_LOWEST);
-    log_pub.set_timeout_ms(10);
+    log_pub.set_timeout_ms(1000);
 
     tunnel_pub.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
     tunnel_pub.set_timeout_ms(5);
@@ -783,7 +783,9 @@ void can_vprintf(uint8_t severity, const char *fmt, va_list ap)
         if (AP_Periph_FW::no_iface_finished_dna) {
             periph.log_buffer.push(pkt);   
         } else {
-            periph.dronecan->log_pub.broadcast(pkt);
+            if (!periph.dronecan->log_pub.broadcast(pkt)) {
+                periph.log_buffer.push(pkt);
+            }
         }
     }
 }
