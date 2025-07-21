@@ -243,7 +243,7 @@ void jump_to_fallback(void)
 #endif
 
 void
-jump_to_address(uint32_t addr, bool watchdog_enabled, bool send_comms)
+jump_to_address(uint32_t addr, bool enable_watchdog, bool send_comms)
 {
 #ifdef HAL_GPIO_PIN_LED_SCK
     // Reset LEDs
@@ -298,12 +298,12 @@ jump_to_address(uint32_t addr, bool watchdog_enabled, bool send_comms)
     // watchdog reset and the firmware hasn't changed the RTC flag to
     // indicate that it has been running OK for 30s then we will stay
     // in bootloader
+    if (enable_watchdog) {
 #ifndef DISABLE_WATCHDOG
-    if (watchdog_enabled) {
         stm32_watchdog_init();
-    }
 #endif
-    stm32_watchdog_pat();
+        stm32_watchdog_pat();
+    }
 #endif
 
     flash_set_keep_unlocked(false);
