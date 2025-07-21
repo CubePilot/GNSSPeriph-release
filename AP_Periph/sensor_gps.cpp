@@ -55,7 +55,9 @@ void AP_Periph_DroneCAN::can_gps_update(void)
                 .priority = CANARD_TRANSFER_PRIORITY_HIGH,
                 .payload = (uint8_t*)buffer,
                 .payload_len = total_size,
+#if CANARD_ENABLE_CANFD
                 .canfd = false,
+#endif
                 .deadline_usec = AP_HAL::micros64()+1000000U,
                 .iface_mask = uint8_t(1<<i),
             };

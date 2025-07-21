@@ -148,6 +148,7 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     GOBJECT(scripting, "SCR_", AP_Scripting),
 #endif
 
+#if HAL_CANFD_SUPPORTED
     // can node FD Out mode
     GSCALAR(can_fdmode,     "CAN_FDMODE", 0),
 
@@ -157,6 +158,7 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
 #if HAL_NUM_CAN_IFACES >= 2
     // can node FD Out baudrate
     GARRAY(can_fdbaudrate, 1,     "CAN2_FDBAUDRATE", 8000000),
+#endif
 #endif
 
 #ifdef I2C_SLAVE_ENABLED
