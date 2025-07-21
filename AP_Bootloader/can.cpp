@@ -63,10 +63,16 @@ static ChibiOS::CANIface can_iface[HAL_NUM_CAN_IFACES];
 #define CAN_APP_NODE_NAME "org.ardupilot." CHIBIOS_BOARD_NAME
 #endif
 
+#ifdef HAL_GPIO_PIN_LED_SCK
+static void profiLED_output_gpio(uint32_t num_leds);
+#endif
 static uint8_t node_id_allocation_transfer_id;
 static uavcan_protocol_NodeStatus node_status;
 static uint32_t send_next_node_id_allocation_request_at_ms;
 static uint8_t node_id_allocation_unique_id_offset;
+#if defined(HAL_BOOTLOADER_FALLBACK) && HAL_BOOTLOADER_FALLBACK
+static bool can_initialising = true;
+#endif
 
 static void processTx(void);
 
@@ -830,9 +836,20 @@ void can_start()
     }
 
 #if defined(HAL_CANFD_CCU_ENABLED) && HAL_CANFD_CCU_ENABLED
+
     // Wait for basic calibration to complete (1 second timeout for bootloader)
-    while (!can_iface[0].waitForBasicCalibration(1000)) {}
-    can_iface[0].setupClockCalibrationMsg(10 | AP_HAL::CANFrame::FlagEFF, 0x7F);
+    for (uint32_t i = 0; !can_iface[0].waitForBasicCalibration(100); i++) {
+#ifdef HAL_GPIO_PIN_LED_SCK
+        profiLED_output_gpio(4);
+#endif
+        if (i >= 50) {
+            // we should try to jump to the app if we can't calibrate
+            jump_to_app();
+            i = 0;
+        }
+    }
+    can_iface[0].setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+    can_initialising = false;
 #endif
 
 #endif
@@ -885,6 +902,9 @@ static struct profiLED_color_s color_func(uint8_t led_idx)
 #if defined(HAL_BOOTLOADER_FALLBACK) && HAL_BOOTLOADER_FALLBACK
     color.g = 0;
     color.r = 0;
+    if (can_initialising) {
+        color.r = blue/3;
+    }
 #else
     color.g = blue/3;
     color.r = blue/3;
