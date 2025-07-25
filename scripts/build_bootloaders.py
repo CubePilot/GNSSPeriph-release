@@ -129,6 +129,8 @@ for board in get_board_list():
         elf_file = 'bootloaders/%s_bl.elf' % board
     source_file = 'build/%s/bin/AP_Bootloader.bin' % actual_board
     shutil.copy(source_file, bl_file)
+    if board == 'Here4':
+        shutil.copy(source_file, 'bootloaders/Here4AKM_bl.bin')
     print("Created %s" % bl_file)
     shutil.copy('build/%s/bootloader/AP_Bootloader' % actual_board, elf_file)
     print("Created %s" % elf_file)
