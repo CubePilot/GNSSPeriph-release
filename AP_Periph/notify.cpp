@@ -122,7 +122,32 @@ void AP_Periph_FW::update_rainbow()
         }
     } else
 #endif
-    {
+    if (!compass.healthy()) {
+        const color red_breathing[] = {
+            { 191, 0, 0 },
+            { 127, 0, 0 },
+            { 63, 0, 0 },
+            { 31, 0, 0 },
+            { 15, 0, 0 },
+            { 7, 0, 0 },
+            { 0, 0, 0 },
+            { 7, 0, 0 },
+            { 15, 0, 0 },
+            { 31, 0, 0 },
+            { 63, 0, 0 },
+            { 127, 0, 0 },
+            { 191, 0, 0 }
+        };
+        // use red breathing pattern
+        const uint8_t nsteps = ARRAY_SIZE(red_breathing);
+        float brightness = (hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : notify.get_rgb_led_brightness_percent()) * 0.01f;
+        for (uint8_t n=0; n<4; n++) {
+            uint8_t i = (step + n) % nsteps;
+            notify.handle_rgb(red_breathing[i].red*brightness,
+                                    red_breathing[i].green*brightness,
+                                    red_breathing[i].blue*brightness);
+        }
+    } else {
         const uint8_t nsteps = ARRAY_SIZE(rgb_rainbow);
         float brightness = (hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : notify.get_rgb_led_brightness_percent()) * 0.01f;
         for (uint8_t n=0; n<4; n++) {
