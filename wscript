@@ -15,21 +15,6 @@ import boards
 from waflib.Configure import conf
 from waflib import Context, Logs, Task, Utils
 
-def handle_here4akm():
-    here4akm_defaults_path = os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef/Here4AKM', 'defaults.parm')
-    here4_defaults_realpath = os.path.realpath(os.path.join('.', 'Here4', 'defaults.parm'))
-    
-    if os.path.exists(here4_defaults_realpath):
-        # remove existing file/symlink if it doesn't point to correct location
-        if os.path.exists(here4akm_defaults_path):
-            if not os.path.islink(here4akm_defaults_path) or os.path.realpath(here4akm_defaults_path) != here4_defaults_realpath:
-                os.remove(here4akm_defaults_path)
-            else:
-                return  # symlink already correct
-        
-        # create symlink
-        os.symlink(here4_defaults_realpath, here4akm_defaults_path)
-
 def create_bl_hwdef(cfg, realpath, dirname):
     # check if directory contains hwdef-bl-main.dat and hwdef-bl-fallback.dat
     if os.path.isfile(os.path.join(realpath, 'hwdef-bl-main.dat')):
@@ -65,8 +50,6 @@ def copy_local_hwdef(cfg, copy_bl_hwdef=False):
         if os.path.islink(os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir)):
             # check if symlink points to correct directory
             if os.path.realpath(os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir)) == realpath:
-                if dir == 'Here4AKM':
-                    handle_here4akm()
                 continue
             else:
                 os.remove(os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir))
@@ -74,9 +57,7 @@ def copy_local_hwdef(cfg, copy_bl_hwdef=False):
             shutil.rmtree(os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir))
         # create symlink to directory
         os.symlink(realpath, os.path.join('ardupilot/libraries/AP_HAL_ChibiOS/hwdef', dir))
-        if dir == 'Here4AKM':
-            # handle Here4AKM symlink
-            handle_here4akm()
+
     # create symlinks to files inside bootloader
     dirname, dirlist, filenames = next(os.walk('bootloaders'))
     for file in filenames:
