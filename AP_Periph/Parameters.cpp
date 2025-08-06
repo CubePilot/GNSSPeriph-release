@@ -80,6 +80,20 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Range: 0 1
     // @User: Advanced
     GSCALAR(flash_bootloader,     "FLASH_BOOTLOADER", 0),
+
+    // @Param: FLASH_FASTBOOT
+    // @DisplayName: Use fastboot bootloader during bootloader update
+    // @Description: When enabled, the App will use the fastboot bootloader during bootloader update. 
+    // @Range: 0 1
+    // @User: Advanced
+    GSCALAR(flash_fastboot,     "FLASH_FASTBOOT", 0),
+#else
+
+    // @DisplayName: Trigger bootloader update
+    // @Description: DANGER! When enabled, the App will perform a bootloader update by copying the embedded bootloader over the existing bootloader. This may take a few seconds to perform and should only be done if you know what you're doing.
+    // @Range: 0 1
+    // @User: Advanced
+    GSCALAR(flash_bootloader,     "FLASH_BOOTLOADER", 0),
 #endif
 
     // @Param: DEBUG

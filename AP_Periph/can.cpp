@@ -472,7 +472,8 @@ static void process1HzTasks(uint64_t timestamp_usec)
         }
         EXPECT_DELAY_MS(2000);
         hal.scheduler->delay(1000);
-        AP_HAL::Util::FlashBootloader res = hal.util->flash_bootloader();
+        can_printf("Flashing bootloader %s\n", periph.g.flash_fastboot ? "fastboot" : "main");
+        AP_HAL::Util::FlashBootloader res = hal.util->flash_bootloader(periph.g.flash_fastboot);
         switch (res) {
         case AP_HAL::Util::FlashBootloader::OK:
             can_printf("Flash bootloader OK\n");

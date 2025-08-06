@@ -61,6 +61,7 @@ public:
         k_param_gps_rover,
         k_param_gps_type,
         k_param_can2_force_en,
+        k_param_flash_fastboot,
     };
 
     AP_Int16 format_version;
@@ -73,6 +74,7 @@ public:
 #endif
 #if !defined(HAL_NO_FLASH_SUPPORT) && !defined(HAL_NO_ROMFS_SUPPORT)
     AP_Int8 flash_bootloader;
+    AP_Int8 flash_fastboot;
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_RANGEFINDER
