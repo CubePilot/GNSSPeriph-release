@@ -1,0 +1,4 @@
+include hwdef-bl-main.dat
+
+define AP_FASTBOOT_ENABLED 1
+undef SERIAL_ORDER
