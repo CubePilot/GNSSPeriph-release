@@ -16,14 +16,14 @@ from waflib.Configure import conf
 from waflib import Context, Logs, Task, Utils
 
 def create_bl_hwdef(cfg, realpath, dirname):
-    # check if directory contains hwdef-bl-main.dat and hwdef-bl-fallback.dat
+    # check if directory contains hwdef-bl-main.dat and hwdef-bl-fastboot.dat
     if os.path.isfile(os.path.join(realpath, 'hwdef-bl-main.dat')):
         # Only create/update symlinks during configure and build phases, not options
-        if not hasattr(cfg, 'options') or not hasattr(cfg.options, 'bootloader_fallback'):
+        if not hasattr(cfg, 'options') or not hasattr(cfg.options, 'bootloader_fastboot'):
             return
-        if cfg.options.bootloader_fallback:
-            print('Using hwdef-bl-fallback.dat for {}'.format(dirname))
-            shutil.copy(os.path.join(realpath, 'hwdef-bl-fallback.dat'),
+        if cfg.options.bootloader_fastboot:
+            print('Using hwdef-bl-fastboot.dat for {}'.format(dirname))
+            shutil.copy(os.path.join(realpath, 'hwdef-bl-fastboot.dat'),
                 os.path.join(realpath, 'hwdef-bl.dat'))
         else:
             print('Using hwdef-bl-main.dat for {}'.format(dirname))
@@ -79,10 +79,10 @@ def options(opt):
         os.chdir('..')
         raise e
 
-    opt.ap_groups['configure'].add_option('--bootloader-fallback',
+    opt.ap_groups['configure'].add_option('--bootloader-fastboot',
                   action='store_true',
                   default=False,
-                  help='use bootloader fallback for hardware definitions')
+                  help='use bootloader fastboot for hardware definitions')
     os.chdir('..')
 
 def configure(cfg):

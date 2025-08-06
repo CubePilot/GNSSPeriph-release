@@ -60,10 +60,10 @@ def get_board_list():
             if args.periph_only and not is_ap_periph(hwdef):
                 continue
             board_list.append(d)
-            # Check if fallback bootloader exists
-            hwdef_fallback = os.path.join(dirname, d, 'hwdef-bl-fallback.dat')
-            if os.path.exists(hwdef_fallback):
-                board_list.append(d + '_fallback')
+            # Check if fastboot bootloader exists
+            hwdef_fastboot = os.path.join(dirname, d, 'hwdef-bl-fastboot.dat')
+            if os.path.exists(hwdef_fastboot):
+                board_list.append(d + '_fastboot')
     return board_list
 
 def run_program(cmd_list):
@@ -75,14 +75,14 @@ def run_program(cmd_list):
     return True
 
 def build_board(board):
-    # Check if this is a fallback bootloader build
-    is_fallback = board.endswith('_fallback')
-    actual_board = board.replace('_fallback', '') if is_fallback else board
+    # Check if this is a fastboot bootloader build
+    is_fastboot = board.endswith('_fastboot')
+    actual_board = board.replace('_fastboot', '') if is_fastboot else board
     
     configure_args = "--board %s -g --bootloader --no-submodule-update --Werror" % actual_board
     configure_args = configure_args.split()
-    if is_fallback:
-        configure_args.append("--bootloader-fallback")
+    if is_fastboot:
+        configure_args.append("--bootloader-fastboot")
     if args.signing_key is not None:
         print("Building secure bootloader")
         configure_args.append("--signed-fw")
@@ -98,12 +98,12 @@ def build_board(board):
     return True
 
 for board in get_board_list():
-    # Special handling: if pattern matches base board name, also include fallback variant
+    # Special handling: if pattern matches base board name, also include fastboot variant
     board_matches = fnmatch.fnmatch(board, args.pattern)
     if not board_matches:
-        # Check if this is a fallback board and the pattern matches the base board
-        if board.endswith('_fallback'):
-            base_board = board.replace('_fallback', '')
+        # Check if this is a fastboot board and the pattern matches the base board
+        if board.endswith('_fastboot'):
+            base_board = board.replace('_fastboot', '')
             if fnmatch.fnmatch(base_board, args.pattern):
                 board_matches = True
     
@@ -111,18 +111,18 @@ for board in get_board_list():
         continue
     print("Building for %s" % board)
     
-    # Check if this is a fallback bootloader build
-    is_fallback = board.endswith('_fallback')
-    actual_board = board.replace('_fallback', '') if is_fallback else board
+    # Check if this is a fastboot bootloader build
+    is_fastboot = board.endswith('_fastboot')
+    actual_board = board.replace('_fastboot', '') if is_fastboot else board
     
     if not build_board(board):
         failed_boards.add(board)
         continue
     
-    if is_fallback:
-        bl_file = 'bootloaders/%s_fallback_bl.bin' % actual_board
-        hex_file = 'bootloaders/%s_fallback_bl.hex' % actual_board
-        elf_file = 'bootloaders/%s_fallback_bl.elf' % actual_board
+    if is_fastboot:
+        bl_file = 'bootloaders/%s_fastboot_bl.bin' % actual_board
+        hex_file = 'bootloaders/%s_fastboot_bl.hex' % actual_board
+        elf_file = 'bootloaders/%s_fastboot_bl.elf' % actual_board
     else:
         bl_file = 'bootloaders/%s_bl.bin' % board
         hex_file = 'bootloaders/%s_bl.hex' % board
@@ -142,7 +142,7 @@ for board in get_board_list():
         if not run_program(["./ardupilot/Tools/scripts/signing/make_secure_bl.py", elf_file, args.signing_key]):
             print("Failed to sign ELF bootloader for %s" % board)
             sys.exit(1)
-    bl_addr = '0x08000000' if not is_fallback else '0x08020000'
+    bl_addr = '0x08000000'
     if not run_program([sys.executable, "ardupilot/Tools/scripts/bin2hex.py", "--offset", bl_addr, bl_file, hex_file]):
         failed_boards.add(board)
         continue
