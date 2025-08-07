@@ -16,9 +16,7 @@ OSCILLATOR_HZ 0
 # board ID for firmware load
 APJ_BOARD_ID 1043
 
-# We have two bootloaders, the fallback should have size set to 2048K - 128K
-# first 128K is occupied by the main bootloader
-FLASH_SIZE_KB 1920
+FLASH_SIZE_KB 2048
 
 FLASH_RESERVE_START_KB 0
 
