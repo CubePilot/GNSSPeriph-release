@@ -319,6 +319,9 @@ void AP_Periph_FW::update()
     if (_setup_ser_i2c_mode && AP_Periph_FW::no_iface_finished_dna) {
         hal.scheduler->expect_delay_ms(100);
         g.serial_i2c_mode.set_and_save(1);
+        g.flash_fastboot.set_and_save(1);
+        // update bootloader as well
+        hal.util->flash_bootloader(true);
         prepare_reboot();
         hal.scheduler->reboot(false);
     }
@@ -326,6 +329,8 @@ void AP_Periph_FW::update()
     if (!AP_Periph_FW::no_iface_finished_dna && g.serial_i2c_mode) {
         hal.scheduler->expect_delay_ms(100);
         g.serial_i2c_mode.set_and_save(0);
+        // update fastboot mode
+        hal.util->flash_bootloader(false);
         prepare_reboot();
         hal.scheduler->reboot(false);
     }
