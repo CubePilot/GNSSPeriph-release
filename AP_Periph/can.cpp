@@ -597,13 +597,10 @@ void AP_Periph_FW::can_start()
         if (can_iface_periph[i] != nullptr) {
             // if (canfdout()) {
 #if HAL_CANFD_CCU_ENABLED
-            if (i == 0) {
-                can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::CCUNormalMode);
-            } else
+            can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::CCUNormalMode);
+#else
+            can_iface_periph[i]->init(g.can_baudrate[i], g.can_fdbaudrate[i], AP_HAL::CANIface::NormalMode);
 #endif
-            {
-                can_iface_periph[i]->init(g.can_baudrate[i], g.can_fdbaudrate[i], AP_HAL::CANIface::NormalMode);
-            }
             // } else {
             //     can_iface_periph[i]->init(g.can_baudrate[i], AP_HAL::CANIface::NormalMode);
             // }
@@ -696,6 +693,20 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
 void AP_Periph_FW::can_update()
 {
     const uint32_t now = AP_HAL::millis();
+
+#if HAL_CANFD_CCU_ENABLED
+    static uint32_t last_can_clock_cal_check = 0;
+    if (now - last_can_clock_cal_check > 3000) {
+        last_can_clock_cal_check = now;
+        if (!can_iface_periph[0]->is_precise_calibration_complete()) {
+            // completely reset CAN Periph, to properly reinitiate CAN Clock calibration
+            can_iface_periph[0]->resetClockCalibration();
+            can_iface_periph[0]->init(g.can_baudrate[0],  g.can_fdbaudrate[0], AP_HAL::CANIface::CCUNormalMode);
+            can_iface_periph[1]->init(g.can_baudrate[1],  g.can_fdbaudrate[1], AP_HAL::CANIface::NormalMode);
+            can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+        }
+    }
+#endif
 
     if (AP_HAL::millis() > send_next_node_id_allocation_request_at_ms) {
         can_do_dna();
