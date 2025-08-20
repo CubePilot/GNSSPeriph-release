@@ -695,16 +695,38 @@ void AP_Periph_FW::can_update()
     const uint32_t now = AP_HAL::millis();
 
 #if HAL_CANFD_CCU_ENABLED
-    static uint32_t last_can_clock_cal_check = 0;
+    // check if we have received a new packet on either interfaces over the last second
+    bool reset_can = false;
+
+    static uint32_t last_can_clock_cal_check = AP_HAL::millis();
     if (now - last_can_clock_cal_check > 3000) {
         last_can_clock_cal_check = now;
-        if (!can_iface_periph[0]->is_precise_calibration_complete()) {
-            // completely reset CAN Periph, to properly reinitiate CAN Clock calibration
-            can_iface_periph[0]->resetClockCalibration();
-            can_iface_periph[0]->init(g.can_baudrate[0],  g.can_fdbaudrate[0], AP_HAL::CANIface::CCUNormalMode);
-            can_iface_periph[1]->init(g.can_baudrate[1],  g.can_fdbaudrate[1], AP_HAL::CANIface::NormalMode);
-            can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+        reset_can = !can_iface_periph[0]->is_precise_calibration_complete();
+    }
+
+    static uint32_t last_rx_count[2] = {0};
+    static uint32_t last_rx_check_ms = AP_HAL::millis();
+    if (now - last_rx_check_ms > 1000) {
+        last_rx_check_ms = now;
+        if (last_rx_count[0] == can_iface_periph[0]->get_statistics()->rx_received &&
+            last_rx_count[1] == can_iface_periph[1]->get_statistics()->rx_received) {
+            // No new packets received on either interface
+            reset_can = true;
         }
+        for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++) {
+            last_rx_count[i] = can_iface_periph[i]->get_statistics()->rx_received;
+        }
+    }
+
+    if (reset_can) {
+        // completely reset CAN Periph, to properly reinitiate CAN Clock calibration
+        for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++) {
+            can_iface_periph[i]->resetClockCalibration();
+        }
+        for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++) {
+            can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::CCUNormalMode);
+        }
+        can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
     }
 #endif
 
