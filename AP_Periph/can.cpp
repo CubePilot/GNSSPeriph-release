@@ -620,7 +620,13 @@ void AP_Periph_FW::can_start()
 #if HAL_CANFD_CCU_ENABLED
     if (can_iface_periph[0] != nullptr) {
         // we rely on Node Status message for clock calibration
-        can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+        if (!g.can_cal_nodeid) {
+            can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+        } else {
+            can_iface_periph[0]->setupClockCalibrationMsg(((uint32_t)g.can_cal_nodeid) |
+                                                           (UAVCAN_PROTOCOL_NODESTATUS_ID << 8) |
+                                                           AP_HAL::CANFrame::FlagEFF, (0x7FU) | (0xFFFU << 8));
+        }
     }
 #endif // HAL_CANFD_CCU_ENABLED
 }
@@ -726,7 +732,14 @@ void AP_Periph_FW::can_update()
         for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++) {
             can_iface_periph[i]->init(g.can_baudrate[i],  g.can_fdbaudrate[i], AP_HAL::CANIface::CCUNormalMode);
         }
-        can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+        // we rely on Node Status message for clock calibration
+        if (!g.can_cal_nodeid) {
+            can_iface_periph[0]->setupClockCalibrationMsg((UAVCAN_PROTOCOL_NODESTATUS_ID << 8) | AP_HAL::CANFrame::FlagEFF, (0xFFFU << 8));
+        } else {
+            can_iface_periph[0]->setupClockCalibrationMsg(((uint32_t)g.can_cal_nodeid) |
+                                                           (UAVCAN_PROTOCOL_NODESTATUS_ID << 8) |
+                                                           AP_HAL::CANFrame::FlagEFF, (0x7FU) | (0xFFFU << 8));
+        }
     }
 #endif
 

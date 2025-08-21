@@ -1,4 +1,5 @@
-#include <AP_HAL/AP_HAL_Boards.h>
+#include <AP_HAL/AP_HAL.h>
+#include <AP_HAL_ChibiOS/CANFDIface.h>
 #include "AP_Periph.h"
 
 extern const AP_HAL::HAL &hal;
@@ -242,6 +243,16 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @User: Standard
     GSCALAR(can2_force_en, "CAN2_FORCE_EN", 0),
 #endif
+
+#if HAL_CANFD_CCU_ENABLED
+    // @Param: CAN_CAL_NODEID
+    // @DisplayName: CAN Calibration Node ID
+    // @Description: CAN Calibration Node ID
+    // @Range: 0 255
+    // @User: Advanced
+    GSCALAR(can_cal_nodeid, "CAN_CAL_NODEID", 0),
+#endif
+
     AP_VAREND
 };
 

@@ -62,6 +62,7 @@ public:
         k_param_gps_type,
         k_param_can2_force_en,
         k_param_flash_fastboot,
+        k_param_can_cal_nodeid
     };
 
     AP_Int16 format_version;
@@ -111,6 +112,7 @@ public:
     AP_Int8 gps_safeboot;
     AP_Int8 gps_type;
     AP_Int8 can2_force_en;
+    AP_Int8 can_cal_nodeid;
     Parameters() {}
 };
 
