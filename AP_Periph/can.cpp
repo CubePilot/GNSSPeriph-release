@@ -711,16 +711,20 @@ void AP_Periph_FW::can_update()
     }
 
     static uint32_t last_rx_count[2] = {0};
+    static uint32_t last_tx_count[2] = {0};
     static uint32_t last_rx_check_ms = AP_HAL::millis();
     if (now - last_rx_check_ms > 1000) {
         last_rx_check_ms = now;
-        if (last_rx_count[0] == can_iface_periph[0]->get_statistics()->rx_received &&
-            last_rx_count[1] == can_iface_periph[1]->get_statistics()->rx_received) {
+        if ((last_rx_count[0] == can_iface_periph[0]->get_statistics()->rx_received &&
+            last_rx_count[1] == can_iface_periph[1]->get_statistics()->rx_received) ||
+            (last_tx_count[0] == can_iface_periph[0]->get_statistics()->tx_success &&
+            last_tx_count[1] == can_iface_periph[1]->get_statistics()->tx_success)) {
             // No new packets received on either interface
             reset_can = true;
         }
         for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++) {
             last_rx_count[i] = can_iface_periph[i]->get_statistics()->rx_received;
+            last_tx_count[i] = can_iface_periph[i]->get_statistics()->tx_success;
         }
     }
 
