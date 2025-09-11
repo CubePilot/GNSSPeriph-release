@@ -141,6 +141,12 @@ public:
     uint8_t compass_send_byte(uint8_t reg);
     void compass_register_rw_callback(uint8_t reg, uint8_t *data, uint32_t len, bool is_write);
 
+    void ak09916_recv_byte(uint8_t idx, uint8_t byte);
+    uint8_t ak09916_send_byte(uint8_t reg);
+    void ak09916_i2c_init();
+    uint8_t ak09916_read_register(uint8_t reg);
+    void ak09916_write_register(uint8_t reg, uint8_t data);
+
     float get_yaw_earth() { return yaw_earth; }
     uint32_t get_vehicle_state() { return vehicle_state; }
 
@@ -185,6 +191,9 @@ public:
     uint8_t i2c2_transfer_address;
     uint8_t i2c2_transfer_direction;
     bool _setup_ser_i2c_mode;
+
+    // AK09916 I2C forwarding
+    uint8_t ak09916_transfer_reg;
 #endif
 
     static AP_Periph_FW *_singleton;

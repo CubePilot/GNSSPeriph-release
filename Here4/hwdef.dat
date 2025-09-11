@@ -159,3 +159,8 @@ define HAL_GCS_ENABLED 0
 define HAL_CANFD_CCU_ENABLED 1
 
 ROMFS fastboot_bootloader.bin Tools/bootloaders/Here4_fastboot_bl.bin
+
+PF14 I2C4_SCL I2C4
+PF15 I2C4_SDA I2C4
+
+I2C_ORDER I2C4
