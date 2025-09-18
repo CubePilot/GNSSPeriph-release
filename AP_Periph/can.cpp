@@ -388,6 +388,8 @@ void AP_Periph_DroneCAN::handle_restart_node(const CanardRxTransfer& transfer, c
     printf("RestartNode\n");
     periph.dronecan->restart_node_server.respond(transfer, resp);
     periph.dronecan->canard_iface.process(10);
+    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
+    memset(comms, 0, sizeof(struct app_bootloader_comms));
     periph.prepare_reboot();
     NVIC_SystemReset();
 }

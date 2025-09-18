@@ -306,6 +306,8 @@ void AP_Periph_FW::update()
         g.flash_fastboot.set_and_save(1);
         // update bootloader as well
         hal.util->flash_bootloader(true);
+        struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
+        memset(comms, 0, sizeof(struct app_bootloader_comms));
         prepare_reboot();
         hal.scheduler->reboot(false);
     }
@@ -315,6 +317,8 @@ void AP_Periph_FW::update()
         g.serial_i2c_mode.set_and_save(0);
         // update fastboot mode
         hal.util->flash_bootloader(false);
+        struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
+        memset(comms, 0, sizeof(struct app_bootloader_comms));
         prepare_reboot();
         hal.scheduler->reboot(false);
     }
