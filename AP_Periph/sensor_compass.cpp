@@ -1,9 +1,5 @@
 #include "AP_Periph.h"
 
-#ifndef SENSOR_ID_OFFSET
-#define SENSOR_ID_OFFSET 0
-#endif 
-
 /*
   update CAN magnetometer
  */

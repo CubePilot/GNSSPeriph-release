@@ -83,9 +83,7 @@ PB2 SPI3_MOSI SPI3
 PB1 MAG_CS CS
 
 # analog input
-define HAL_USE_ADC FALSE
-define STM32_ADC_USE_ADC1 FALSE
-define HAL_DISABLE_ADC_DRIVER TRUE
+PA1 BATT_VOLTAGE_SENS ADC1 SCALE(1)
 
 define HAL_INS_ACCELCAL_ENABLED FALSE
 define HAL_PERIPH_ENABLE_BARO TRUE
@@ -158,8 +156,6 @@ define AP_SERIALLED_ENABLED 1
 #define HAL_EFI_ENABLED 0
 define HAL_GCS_ENABLED 0
 
-// Clock and power setting is handled by the bootloader
-// including HSE clock fallback to HSI
-define HAL_CANFD_CCU_ENABLED 1
-
 ROMFS fastboot_bootloader.bin Tools/bootloaders/Here4_fastboot_bl.bin
+
+define HAL_HSI_TRIM_USING_PPS 1
