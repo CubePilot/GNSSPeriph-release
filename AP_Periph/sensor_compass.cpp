@@ -38,7 +38,11 @@ void AP_Periph_DroneCAN::can_mag_update(void)
         }
         periph.last_mag_update_ms[i] = compass.last_update_ms(i);
         const Vector3f &field = compass.get_field(i);
-        pkt.sensor_id = SENSOR_ID_OFFSET + i;
+        if (((compass.get_detected_dev_id(i) >> 16) & 0xFF) == AP_Compass_Backend::DEVTYPE_AK09918) {
+            pkt.sensor_id = 1;
+        } else {
+            pkt.sensor_id = 0;
+        }
         for (uint8_t j=0; j<3; j++) {
             pkt.magnetic_field_ga[j] = field[j] * 0.001;
         }

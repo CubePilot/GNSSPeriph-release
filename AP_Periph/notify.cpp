@@ -94,6 +94,14 @@ void AP_Periph_FW::update_rainbow()
 
     last_update_ms = now;
     static uint8_t step;
+    bool compass_healthy = false;
+    for (uint8_t i=0; i<COMPASS_MAX_INSTANCES; i++) {
+        if (compass.healthy(i)) {
+            compass_healthy = true;
+            break;
+        }
+    }
+
 #if defined(HAL_CANFD_CCU_ENABLED) && HAL_CANFD_CCU_ENABLED
     const color amber_breathing[] = {
         { 191, 0, 191 },
@@ -122,7 +130,7 @@ void AP_Periph_FW::update_rainbow()
         }
     } else
 #endif
-    if (!compass.healthy()) {
+    if (!compass_healthy) {
         const color red_breathing[] = {
             { 191, 0, 0 },
             { 127, 0, 0 },
