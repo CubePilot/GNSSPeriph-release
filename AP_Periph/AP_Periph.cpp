@@ -66,19 +66,8 @@ AP_Periph_FW::AP_Periph_FW()
     _singleton = this;
 }
 
-#ifdef GPIO_USART1_RX
-void AP_Periph_FW::gpio_passthrough_isr(uint8_t pin, bool pin_state, uint32_t timestamp)
-{
-    if (pin == GPIO_USART1_RX) {
-        hal.gpio->write(GPIO_USART2_TX, pin_state);
-    } else if (pin == GPIO_USART2_RX) {
-        hal.gpio->write(GPIO_USART1_TX, pin_state);
-    }
-}
-#endif
 void AP_Periph_FW::init()
 {
-    
     // always run with watchdog enabled. This should have already been
     // setup by the bootloader, but if not then enable now
 #ifndef DISABLE_WATCHDOG
@@ -107,7 +96,7 @@ void AP_Periph_FW::init()
     stm32_watchdog_pat();
 
     hal.serial(0)->begin(AP_SERIALMANAGER_CONSOLE_BAUD, 2048, 2048);
-    hal.serial(3)->begin(115200, 128, 256);
+    hal.serial(3)->begin(115200, 2048, 2048);
 
     load_parameters();
 
@@ -158,23 +147,15 @@ void AP_Periph_FW::init()
     }
 #endif
 
-    bool enable_gps = true;
-#ifdef I2C_SLAVE_ENABLED
-    enable_gps = !g.serial_i2c_mode;
-#endif
-    if (enable_gps) {
-        gps.init();
-    } else {
-#ifdef GPIO_USART1_RX
-        // setup gpio passthrough
-        hal.gpio->set_mode(GPIO_USART1_RX, HAL_GPIO_INPUT);
-        hal.gpio->set_mode(GPIO_USART1_TX, HAL_GPIO_OUTPUT);
-        hal.gpio->set_mode(GPIO_USART2_RX, HAL_GPIO_INPUT);
-        hal.gpio->set_mode(GPIO_USART2_TX, HAL_GPIO_OUTPUT);
-        hal.gpio->attach_interrupt(GPIO_USART1_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
-        hal.gpio->attach_interrupt(GPIO_USART2_RX, FUNCTOR_BIND_MEMBER(&AP_Periph_FW::gpio_passthrough_isr, void, uint8_t, bool, uint32_t), AP_HAL::GPIO::INTERRUPT_BOTH);
-#endif
+    if (g.serial_i2c_mode) {
+        float value;
+        AP_Param::get("GPS_DRV_OPTIONS", value);
+        uint16_t options = (uint16_t)value;
+        options |= 4;
+        AP_Param::set_by_name("GPS_DRV_OPTIONS", options);
     }
+
+    gps.init();
 
 #ifdef I2C_SLAVE_ENABLED
     i2c_setup();

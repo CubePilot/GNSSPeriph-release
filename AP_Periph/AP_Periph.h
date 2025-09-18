@@ -253,6 +253,7 @@ public:
 
 class AP_Periph_DroneCAN {
     uint8_t timesync_tid[HAL_NUM_CAN_IFACES];
+    bool _gps_115k_baud_set;
 public:
     AP_Periph_DroneCAN();
 
