@@ -159,9 +159,12 @@ void AP_Periph_FW::init()
 
 #ifdef I2C_SLAVE_ENABLED
     i2c_setup();
-#endif
 
-    compass.init();
+    if (!(is_ak09916_available && g.serial_i2c_mode))
+#endif
+    {
+        compass.init();
+    }
 
 #ifdef HAL_PERIPH_ENABLE_BARO
     baro.init();

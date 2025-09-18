@@ -7,6 +7,7 @@
 #define RM3100_I2C_ADDR2 0x21
 #define RM3100_I2C_ADDR3 0x22
 #define RM3100_I2C_ADDR4 0x23
+#define AK09916_I2C_ADDR 0x0C
 #define HAL_I2C_H7_400_TIMINGR 0x00300F38
 extern const AP_HAL::HAL &hal;
 
@@ -41,7 +42,13 @@ void AP_Periph_FW::i2c_setup()
     //7Bit Address Mode
     I2C2->CR2 &= ~I2C_CR2_ADD10;
 
-    I2C2->OAR1 = (RM3100_I2C_ADDR1 & 0xFF) << 1; //Emulate AK09916 I2C Slave
+    if (ak09916_i2c_init()) {
+        I2C2->OAR1 = (AK09916_I2C_ADDR & 0xFF) << 1; //Emulate AK09916 I2C Slave
+        is_ak09916_available = true;
+    } else {
+        I2C2->OAR1 = (RM3100_I2C_ADDR1 & 0xFF) << 1; //Emulate RM3100 I2C Slave
+    }
+
     I2C2->OAR1 |= (1<<15);
 
     I2C2->OAR2 = (TOSHIBALED_I2C_ADDRESS & 0xFF) << 1; //Emulate Toshiba LED I2C Slave
@@ -55,7 +62,9 @@ void AP_Periph_FW::i2c_setup()
     I2C2->CR1 |= (1<<5); // STOPIE
 	I2C2->CR1 |= I2C_CR1_PE; // Enable I2C
 
-    hal.spi->set_register_rw_callback("rm3100", FUNCTOR_BIND_MEMBER(&AP_Periph_FW::compass_register_rw_callback, void, uint8_t, uint8_t*, uint32_t, bool));
+    if (!is_ak09916_available) {
+        hal.spi->set_register_rw_callback("rm3100", FUNCTOR_BIND_MEMBER(&AP_Periph_FW::compass_register_rw_callback, void, uint8_t, uint8_t*, uint32_t, bool));
+    }
 }
 
 void AP_Periph_FW::toshibaled_interface_recv_byte(uint8_t recv_byte_idx, uint8_t recv_byte)
@@ -196,8 +205,171 @@ void AP_Periph_FW::compass_recv_byte(uint8_t idx, uint8_t byte)
     }
 }
 
+bool AP_Periph_FW::ak09916_recv_byte(uint8_t idx, uint8_t byte)
+{
+    if (idx == 0) {
+        // First byte is the register address
+        ak09916_transfer_reg = byte;
+        return true;
+    } else {
+        // Subsequent bytes are data to write to the register
+        // Use raw I2C register access for direct hardware control
+        return ak09916_write_register(ak09916_transfer_reg, byte);
+    }
+}
+
+// Initialize I2C4 for AK09916 master communication
+bool AP_Periph_FW::ak09916_i2c_init()
+{
+    // Enable I2C4 clock
+    rccEnableI2C4(FALSE);
+    rccResetI2C4();
+
+    // Disable I2C4
+    I2C4->CR1 &= ~I2C_CR1_PE;
+
+    // Configure timing for 400kHz operation on H7 
+    I2C4->TIMINGR = HAL_I2C_H7_400_TIMINGR;
+
+    // Configure as master mode
+    I2C4->CR2 &= ~I2C_CR2_ADD10;  // 7-bit addressing
+
+    // Enable I2C4
+    I2C4->CR1 |= I2C_CR1_PE;
+
+    if (!ak09916_write_register(0x32, 0x01)) {
+        return false; // Failed to write to control register
+    }
+
+    if (!ak09916_write_register(0x32, 0x01)) {
+        return false; // Failed to write to control register
+    }
+
+    // try reading the device ID register to confirm presence
+    uint8_t id = 0x0;
+    for (int i = 0; i < 10; i++) {
+        if (ak09916_read_register(0x01, id)) {
+            break; // AK09916 detected
+        }
+        hal.scheduler->delay(10); // wait before retrying
+    }
+
+    if (id != 0x0C) {
+        return false; // AK09916 not detected
+    }
+
+    // setup AK09916 in continuous measurement mode 2
+    if (!ak09916_write_register(0x31, 0x08)) {
+        return false; // Failed to write to mode register
+    }
+
+    // try reading actual data register to confirm presence
+    uint8_t data = 0x0;
+    for (uint8_t i = 0; i < 5; i++) {
+        hal.scheduler->delay(10); // wait before retrying
+        if (!ak09916_read_register(0x11, data)) {
+            continue;
+        }
+        if (data & 0x01) {
+            return true; // AK09916 detected
+        }
+    }
+    return false;
+}
+
+static bool i2c_wait_flag(volatile uint32_t &reg, uint32_t flag, bool set, uint32_t timeout_ms)
+{
+    uint32_t start = AP_HAL::millis();
+    while (true) {
+        if (set) {
+            if (reg & flag) return true;
+        } else {
+            if ((reg & flag) == 0) return true;
+        }
+        if ((AP_HAL::millis() - start) > timeout_ms) {
+            return false; // timeout
+        }
+    }
+}
+
+// Read a register from AK09916 using raw I2C register access
+bool AP_Periph_FW::ak09916_read_register(uint8_t reg, uint8_t &data)
+{
+    data = 0;
+
+    I2C4->ICR = 0xFFFFFFFF; // Clear all flags
+
+    // Configure transfer: START + device address + register address + RESTART + device address + read
+    I2C4->CR2 = (AK09916_I2C_ADDR << 1) | (1 << I2C_CR2_NBYTES_Pos) | (1 << I2C_CR2_START_Pos); // SADD, RD_WRN=0, START, NBYTES=1
+
+    // Send register address
+    I2C4->TXDR = reg;
+
+    // Wait for transfer complete
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TC, true, 1)) {
+        I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+        return false; // timeout
+    }
+
+    // Configure for read: RESTART + device address + read 1 byte + STOP
+    I2C4->CR2 = (AK09916_I2C_ADDR << 1) | (1 << I2C_CR2_RD_WRN_Pos) | (1 << I2C_CR2_START_Pos) | (1 << I2C_CR2_NBYTES_Pos); // RD_WRN=1, START, NBYTES=1
+
+    // Wait for receive data
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_RXNE, true, 1)) {
+        I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+        return false; // timeout
+    }
+
+    // Read the data
+    data = I2C4->RXDR;
+
+    I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+    return true;
+}
+
+// Write a register to AK09916 using raw I2C register access
+bool AP_Periph_FW::ak09916_write_register(uint8_t reg, uint8_t data)
+{
+    I2C4->ICR = 0xFFFFFFFF; // Clear all flags
+
+    // Configure transfer: START + device address + register address + data + STOP
+    I2C4->CR2 = (AK09916_I2C_ADDR << 1) | (2 << I2C_CR2_NBYTES_Pos) | I2C_CR2_START; // SADD, NBYTES=2, START, STOP
+
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TXIS, true, 1)) {
+        I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+        return false; // timeout
+    }
+
+    // Send register address
+    I2C4->TXDR = reg;
+
+    // Wait for TX ready
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TXIS, true, 1)) {
+        I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+        return false; // timeout
+    }
+
+    // Send data
+    I2C4->TXDR = data;
+
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TC, true, 1)) {
+        I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+        return false; // timeout
+    }
+
+    I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+
+    // Wait for STOP condition
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_STOPF, true, 1)) {
+        I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
+        return false; // timeout
+    }
+    return true;
+}
+
 static void i2c_serve_interrupt(uint32_t isr)
 {
+    I2C2->ICR = isr & 0x3F38; // clear all interrupt flags we are servicing
     if (isr & (1<<3)) { // ADDR
         periph.i2c2_transfer_address = (isr >> 17) & 0x7FU; // ADDCODE
         periph.i2c2_transfer_direction = (isr >> 16) & 1; // direction
@@ -205,7 +377,6 @@ static void i2c_serve_interrupt(uint32_t isr)
         if (periph.i2c2_transfer_direction) {
             I2C2->ISR |= (1<<0); // TXE
         }
-        I2C2->ICR |= (1<<3); // ADDRCF
     }
 
     if (isr & I2C_ISR_RXNE) {
@@ -213,6 +384,12 @@ static void i2c_serve_interrupt(uint32_t isr)
         switch(periph.i2c2_transfer_address) {
             case TOSHIBALED_I2C_ADDRESS:
                 periph.toshibaled_interface_recv_byte(periph.i2c2_transfer_byte_idx, recv_byte);
+                break;
+            case AK09916_I2C_ADDR:
+                if (!periph.ak09916_recv_byte(periph.i2c2_transfer_byte_idx, recv_byte)) {
+                    // nack
+                    I2C2->CR2 |= I2C_CR2_NACK;
+                }
                 break;
             case RM3100_I2C_ADDR1:
             case RM3100_I2C_ADDR2:
@@ -229,6 +406,17 @@ static void i2c_serve_interrupt(uint32_t isr)
             case TOSHIBALED_I2C_ADDRESS:
                 I2C2->TXDR = 0x0; //TODO, return actual data
                 break;
+            case AK09916_I2C_ADDR: {
+                uint8_t data = 0;
+                if (periph.ak09916_read_register(periph.ak09916_transfer_reg + periph.i2c2_transfer_byte_idx, data)) {
+                    I2C2->TXDR = data;
+                } else {
+                    // send NACK
+                    I2C2->CR2 |= I2C_CR2_NACK;
+                    I2C2->TXDR = 0xFF;
+                }
+            }
+                break;
             case RM3100_I2C_ADDR1:
             case RM3100_I2C_ADDR2:
             case RM3100_I2C_ADDR3:
@@ -237,10 +425,6 @@ static void i2c_serve_interrupt(uint32_t isr)
                 break;
         }
         periph.i2c2_transfer_byte_idx++;
-    }
-
-    if (isr & I2C_ISR_STOPF) {
-        I2C2->ICR |= I2C_ISR_STOPF; // STOPCF
     }
 }
 

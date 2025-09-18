@@ -10,6 +10,11 @@
 void AP_Periph_DroneCAN::can_mag_update(void)
 {
 #ifdef HAL_PERIPH_ENABLE_MAG
+#ifdef I2C_SLAVE_ENABLED
+    if (periph.is_ak09916_available && periph.g.serial_i2c_mode) {
+        return;
+    }
+#endif
     auto &compass = periph.compass;
     if (!compass.available()) {
         return;
