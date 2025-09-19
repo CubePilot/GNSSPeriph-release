@@ -22,15 +22,16 @@ void AP_Periph_DroneCAN::can_gps_update(void)
     if (_gps_115k_baud_set && periph.g.serial_i2c_mode) {
         while (hal.serial(0)->available() || hal.serial(HAL_GPS_SERIAL_PASSTHROUGH)->available()) {
             uint8_t b[256] = {};
-            size_t len = hal.serial(0)->read(b, sizeof(b));
-            if (len) {
+            ssize_t len = hal.serial(0)->read(b, sizeof(b));
+            if (len > 0) {
                 hal.serial(HAL_GPS_SERIAL_PASSTHROUGH)->write(b, len);
             }
             len = hal.serial(HAL_GPS_SERIAL_PASSTHROUGH)->read(b, sizeof(b));
-            if (len) {
+            if (len > 0) {
                 hal.serial(0)->write(b, len);
             }
         }
+        return;
     }
 #endif
     gps.update();
