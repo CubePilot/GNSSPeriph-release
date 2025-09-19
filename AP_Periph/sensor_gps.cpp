@@ -18,6 +18,7 @@ void AP_Periph_DroneCAN::can_gps_update(void)
     auto &gps = periph.gps;
     // we need to record this time as its reset when we call gps.update()
     uint64_t last_message_local_time_us = gps.last_pps_time_usec();
+#ifdef HAL_GPS_SERIAL_PASSTHROUGH
     if (_gps_115k_baud_set && periph.g.serial_i2c_mode) {
         while (hal.serial(0)->available() || hal.serial(HAL_GPS_SERIAL_PASSTHROUGH)->available()) {
             uint8_t b[256] = {};
@@ -31,6 +32,7 @@ void AP_Periph_DroneCAN::can_gps_update(void)
             }
         }
     }
+#endif
     gps.update();
 
     if (gps.status() != AP_GPS::NO_GPS && periph.g.serial_i2c_mode && hal.serial(0)->get_baud_rate() == 115200) {
