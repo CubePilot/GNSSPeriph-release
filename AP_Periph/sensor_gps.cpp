@@ -35,9 +35,11 @@ void AP_Periph_DroneCAN::can_gps_update(void)
 #endif
     gps.update();
 
+#ifdef HAL_GPS_SERIAL_PASSTHROUGH
     if (gps.status() != AP_GPS::NO_GPS && periph.g.serial_i2c_mode && hal.serial(0)->get_baud_rate() == 115200) {
         _gps_115k_baud_set = true;
     }
+#endif
 
     send_moving_baseline_msg();
     send_relposheading_msg();

@@ -709,6 +709,10 @@ void AP_Periph_FW::can_update()
         i2c_new_led_data = false;
         set_rgb_led(i2c_led_color_red, i2c_led_color_green, i2c_led_color_blue);
     }
+
+    if (g.serial_i2c_mode) {
+        dronecan->can_gps_update();
+    }
 #endif
     if (!AP_Periph_FW::no_iface_finished_dna) {
         static uint32_t last_1Hz_ms;
@@ -723,9 +727,7 @@ void AP_Periph_FW::can_update()
         dronecan->can_mag_update();
         dronecan->can_baro_update();
     }
-    if (g.serial_i2c_mode) {
-        dronecan->can_gps_update();
-    }
+
     // push log messages as well
     while (log_buffer.available()) {
         uavcan_protocol_debug_LogMessage msg {};

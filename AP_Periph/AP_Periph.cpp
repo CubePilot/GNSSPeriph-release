@@ -147,6 +147,7 @@ void AP_Periph_FW::init()
     }
 #endif
 
+#ifdef I2C_SLAVE_ENABLED
     if (g.serial_i2c_mode) {
         float value;
         AP_Param::get("GPS_DRV_OPTIONS", value);
@@ -154,6 +155,7 @@ void AP_Periph_FW::init()
         options |= 4;
         AP_Param::set_by_name("GPS_DRV_OPTIONS", options);
     }
+#endif
 
     gps.init();
 
