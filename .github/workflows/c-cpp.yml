@@ -105,19 +105,6 @@ jobs:
         cp build/Here4/bin/AP_Periph_with_bl.hex release/Here4_FW_with_bl.hex
         cp build/Here4/bin/AP_Periph release/Here4_FW.elf
         cp build/Here4/bin/AP_Periph.apj release/Here4_FW.apj
-    - name: copy Here4 bootloader for Here4AKM
-      run: |
-        cp bootloaders/Here4_bl.bin bootloaders/Here4AKM_bl.bin
-    - name: configure
-      run: ./waf configure --board Here4AKM -g
-    - name: build
-      run: ./waf clean && ./waf AP_Periph
-    - name: copy Here4AKM files to release
-      run: |
-        cp build/Here4AKM/bin/AP_Periph.bin release/Here4AKM_FW.bin
-        cp build/Here4AKM/bin/AP_Periph_with_bl.hex release/Here4AKM_FW_with_bl.hex
-        cp build/Here4AKM/bin/AP_Periph release/Here4AKM_FW.elf
-        cp build/Here4AKM/bin/AP_Periph.apj release/Here4AKM_FW.apj
     - name: configure
       run: ./waf configure --board HerePro -g
     - name: build
@@ -157,12 +144,7 @@ jobs:
         if [ -f "Here4_FW.bin" ]; then
           zip -j ../artifacts/Here4_FW.zip Here4_FW.*
         fi
-        
-        # Here4AKM artifacts
-        if [ -f "Here4AKM_FW.bin" ]; then
-          zip -j ../artifacts/Here4AKM_FW.zip Here4AKM_FW.*
-        fi
-        
+
         # HerePro artifacts
         if [ -f "HerePro_FW.bin" ]; then
           zip -j ../artifacts/HerePro_FW.zip HerePro_FW.*
