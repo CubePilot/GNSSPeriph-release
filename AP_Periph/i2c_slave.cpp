@@ -1,6 +1,10 @@
 #include "AP_Periph.h"
 #include <ch.h>
 #include <hal.h>
+
+#include <AP_HAL_ChibiOS/hwdef/common/stm32_util.h>
+#include <AP_HAL_ChibiOS/hwdef/common/watchdog.h>
+
 #ifdef I2C_SLAVE_ENABLED
 #define TOSHIBALED_I2C_ADDRESS 0x55
 #define RM3100_I2C_ADDR1 0x20
@@ -10,6 +14,8 @@
 #define AK09916_I2C_ADDR 0x0C
 #define HAL_I2C_H7_400_TIMINGR 0x00300F38
 extern const AP_HAL::HAL &hal;
+
+#define TIMEOUT_MS 5
 
 void AP_Periph_FW::i2c_setup()
 {
@@ -42,9 +48,17 @@ void AP_Periph_FW::i2c_setup()
     //7Bit Address Mode
     I2C2->CR2 &= ~I2C_CR2_ADD10;
 
-    if (ak09916_i2c_init()) {
+    for (uint8_t i=0; i<10; i++) {
+        if (ak09916_i2c_init()) {
+            is_ak09916_available = true;
+            break;
+        }
+        hal.scheduler->delay(10);
+        stm32_watchdog_pat();
+    }
+
+    if (is_ak09916_available) {
         I2C2->OAR1 = (AK09916_I2C_ADDR & 0xFF) << 1; //Emulate AK09916 I2C Slave
-        is_ak09916_available = true;
     } else {
         I2C2->OAR1 = (RM3100_I2C_ADDR1 & 0xFF) << 1; //Emulate RM3100 I2C Slave
     }
@@ -306,7 +320,7 @@ bool AP_Periph_FW::ak09916_read_register(uint8_t reg, uint8_t &data)
     I2C4->TXDR = reg;
 
     // Wait for transfer complete
-    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TC, true, 1)) {
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TC, true, TIMEOUT_MS)) {
         I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
         return false; // timeout
     }
@@ -315,7 +329,7 @@ bool AP_Periph_FW::ak09916_read_register(uint8_t reg, uint8_t &data)
     I2C4->CR2 = (AK09916_I2C_ADDR << 1) | (1 << I2C_CR2_RD_WRN_Pos) | (1 << I2C_CR2_START_Pos) | (1 << I2C_CR2_NBYTES_Pos); // RD_WRN=1, START, NBYTES=1
 
     // Wait for receive data
-    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_RXNE, true, 1)) {
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_RXNE, true, TIMEOUT_MS)) {
         I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
         return false; // timeout
     }
@@ -335,7 +349,7 @@ bool AP_Periph_FW::ak09916_write_register(uint8_t reg, uint8_t data)
     // Configure transfer: START + device address + register address + data + STOP
     I2C4->CR2 = (AK09916_I2C_ADDR << 1) | (2 << I2C_CR2_NBYTES_Pos) | I2C_CR2_START; // SADD, NBYTES=2, START, STOP
 
-    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TXIS, true, 1)) {
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TXIS, true, TIMEOUT_MS)) {
         I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
         return false; // timeout
     }
@@ -344,7 +358,7 @@ bool AP_Periph_FW::ak09916_write_register(uint8_t reg, uint8_t data)
     I2C4->TXDR = reg;
 
     // Wait for TX ready
-    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TXIS, true, 1)) {
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TXIS, true, TIMEOUT_MS)) {
         I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
         return false; // timeout
     }
@@ -352,7 +366,7 @@ bool AP_Periph_FW::ak09916_write_register(uint8_t reg, uint8_t data)
     // Send data
     I2C4->TXDR = data;
 
-    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TC, true, 1)) {
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_TC, true, TIMEOUT_MS)) {
         I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
         return false; // timeout
     }
@@ -360,7 +374,7 @@ bool AP_Periph_FW::ak09916_write_register(uint8_t reg, uint8_t data)
     I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
 
     // Wait for STOP condition
-    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_STOPF, true, 1)) {
+    if (!i2c_wait_flag(I2C4->ISR, I2C_ISR_STOPF, true, TIMEOUT_MS)) {
         I2C4->CR2 |= I2C_CR2_STOP; // Generate STOP
         return false; // timeout
     }
