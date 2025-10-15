@@ -172,7 +172,7 @@ void AP_Periph_DroneCAN::can_gps_update(void)
             status.status |= ARDUPILOT_GNSS_STATUS_STATUS_LOGGING;
         }
 
-        uint32_t error_codes;
+        uint32_t error_codes = 0;
         if (gps.get_error_codes(error_codes)) {
             status.error_codes = error_codes;
         }
@@ -187,7 +187,7 @@ void AP_Periph_DroneCAN::can_gps_update(void)
 
 void AP_Periph_DroneCAN::send_moving_baseline_msg()
 {
-#if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
+#if AP_PERIPH_GPS_ENABLED && GPS_MOVING_BASELINE
     auto &gps = periph.gps;
     const uint8_t *data = nullptr;
     uint16_t len = 0;
@@ -209,11 +209,11 @@ void AP_Periph_DroneCAN::send_moving_baseline_msg()
         data += mbldata.data.len;
     }
     gps.clear_RTCMV3();
-#endif // HAL_PERIPH_ENABLE_GPS && GPS_MOVING_BASELINE
+#endif // AP_PERIPH_GPS_ENABLED && GPS_MOVING_BASELINE
 }
 
 void AP_Periph_DroneCAN::send_relposheading_msg() {
-#if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
+#if AP_PERIPH_GPS_ENABLED && GPS_MOVING_BASELINE
     auto &gps = periph.gps;
     float reported_heading;
     float relative_distance;
@@ -221,8 +221,8 @@ void AP_Periph_DroneCAN::send_relposheading_msg() {
     float reported_heading_acc;
     static uint32_t last_timestamp = 0;
     uint32_t curr_timestamp = 0;
-    gps.get_RelPosHeading(curr_timestamp, reported_heading, relative_distance, relative_down_pos, reported_heading_acc);
-    if (last_timestamp == curr_timestamp) {
+    if (!gps.get_RelPosHeading(curr_timestamp, reported_heading, relative_distance, relative_down_pos, reported_heading_acc) ||
+    last_timestamp == curr_timestamp) {
         return;
     }
     last_timestamp = curr_timestamp;
@@ -235,7 +235,7 @@ void AP_Periph_DroneCAN::send_relposheading_msg() {
     relpos.reported_heading_acc_available = true;
 
     relposheading_pub.broadcast(relpos);
-#endif // HAL_PERIPH_ENABLE_GPS && GPS_MOVING_BASELINE
+#endif // AP_PERIPH_GPS_ENABLED && GPS_MOVING_BASELINE
 }
 
 

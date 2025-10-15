@@ -182,7 +182,7 @@ void AP_Periph_FW::init()
 
     compass.init();
 
-#ifdef HAL_PERIPH_ENABLE_BARO
+#if AP_PERIPH_BARO_ENABLED
     baro.init();
 #endif
 
@@ -245,9 +245,9 @@ void AP_Periph_FW::rcout_update()
     }
     rcout_has_new_data_to_update = false;
     SRV_Channels::calc_pwm();
-    SRV_Channels::cork();
+    servo_channels.cork();
     SRV_Channels::output_ch_all();
-    SRV_Channels::push();
+    servo_channels.push();
 }
 
 
@@ -264,7 +264,7 @@ void AP_Periph_FW::update()
     gps_rover.update();
 #endif
 
-    SRV_Channels::enable_aux_servos();
+    servo_channels.enable_aux_servos();
 
     static uint32_t last_led_ms;
     uint32_t now = AP_HAL::millis();
@@ -292,15 +292,9 @@ void AP_Periph_FW::update()
         }
 #if HAL_UART_STATS_ENABLED
         if (debug_option_is_set(DebugOptions::SERIAL_STATS)) {
-            for (uint8_t i = 0; i < HAL_UART_NUM_SERIAL_PORTS; i++) {
-                auto *uart = hal.serial(i);
-                if (uart && uart->is_initialized()) {
-                    uart_info.printf("SERIAL%u ", i);
-                    uart->uart_info(uart_info);
-                    can_printf("%s", uart_info.get_string());
-                    uart_info.reset();
-                }
-            }
+            hal.util->uart_info(uart_info);
+            can_printf("%s", uart_info.get_string());
+            uart_info.reset();
         }
 #endif
     }

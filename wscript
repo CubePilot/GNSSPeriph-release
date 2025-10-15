@@ -11,6 +11,7 @@ import json
 import fnmatch
 import shutil
 sys.path.insert(0, 'ardupilot/Tools/ardupilotwaf/')
+sys.path.insert(0, 'ardupilot/Tools/scripts/')
 sys.path.insert(0, '.')
 import waflib.extras.compat15
 import ardupilotwaf

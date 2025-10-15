@@ -277,13 +277,13 @@ void AP_Periph_DroneCAN::handle_param_executeopcode(const CanardRxTransfer& tran
         AP_Param::erase_all();
         AP_Param::load_all();
         AP_Param::setup_sketch_defaults();
-#ifdef HAL_PERIPH_ENABLE_GPS
+#if AP_PERIPH_GPS_ENABLED
         AP_Param::setup_object_defaults(&periph.gps, periph.gps.var_info);
 #endif
-#ifdef HAL_PERIPH_ENABLE_MAG
+#if AP_PERIPH_MAG_ENABLED
         AP_Param::setup_object_defaults(&periph.compass, periph.compass.var_info);
 #endif
-#ifdef HAL_PERIPH_ENABLE_BARO
+#if AP_PERIPH_BARO_ENABLED
         AP_Param::setup_object_defaults(&periph.baro, periph.baro.var_info);
 #endif
     }

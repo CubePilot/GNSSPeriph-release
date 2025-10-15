@@ -101,11 +101,9 @@ public:
 
     AP_GPS gps;
 
-#ifdef HAL_PERIPH_ENABLE_MAG
     Compass compass;
-#endif
 
-#ifdef HAL_PERIPH_ENABLE_BARO
+#if AP_PERIPH_BARO_ENABLED
     AP_Baro baro;
 #endif
 

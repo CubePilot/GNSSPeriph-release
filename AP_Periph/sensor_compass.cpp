@@ -9,7 +9,6 @@
  */
 void AP_Periph_DroneCAN::can_mag_update(void)
 {
-#ifdef HAL_PERIPH_ENABLE_MAG
     auto &compass = periph.compass;
     if (!compass.available()) {
         return;
@@ -39,5 +38,4 @@ void AP_Periph_DroneCAN::can_mag_update(void)
         }
         mag_pub.broadcast(pkt);
     }
-#endif // HAL_PERIPH_ENABLE_MAG
 }

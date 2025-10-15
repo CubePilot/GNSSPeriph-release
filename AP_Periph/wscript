@@ -71,6 +71,7 @@ def build(bld):
                     'AP_Logger',
                     'AC_PID',
                     'AP_CheckFirmware',
+                    'AP_MultiHeap',
                     ]
     bld.ap_stlib(
         name= 'AP_Periph_libs',

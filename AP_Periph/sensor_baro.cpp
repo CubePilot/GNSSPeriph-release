@@ -5,7 +5,7 @@
  */
 void AP_Periph_DroneCAN::can_baro_update(void)
 {
-#ifdef HAL_PERIPH_ENABLE_BARO
+#if AP_PERIPH_BARO_ENABLED
     auto &baro = periph.baro;
     if (!periph.g.baro_enable) {
         return;

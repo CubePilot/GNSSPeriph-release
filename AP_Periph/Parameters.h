@@ -68,7 +68,7 @@ public:
     
     AP_Int32 can_baudrate[HAL_NUM_CAN_IFACES];
 
-#ifdef HAL_PERIPH_ENABLE_BARO
+#if AP_PERIPH_BARO_ENABLED
     AP_Int8 baro_enable;
 #endif
 #if !defined(HAL_NO_FLASH_SUPPORT) && !defined(HAL_NO_ROMFS_SUPPORT)

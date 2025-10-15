@@ -2,14 +2,14 @@
 from waflib.Configure import conf
 from waflib import Context, Logs, Task, Utils
 
-def _git_head_hash(ctx, path, short=False):
+def _git_head_hash(ctx, path, short=False, hash_abbrev=8):
     cmd = [ctx.env.get_flat('GIT'), 'rev-parse']
     if short:
-        cmd.append('--short=8')
+        cmd.append('--short=%u' % hash_abbrev)
     cmd.append('HEAD')
     out = ctx.cmd_and_log(cmd, quiet=Context.BOTH, cwd=path)
     return out.strip()
 
 @conf
-def git_head_hash(self, short=False):
-    return _git_head_hash(self, self.srcnode.abspath()+'/..', short=short)
+def git_head_hash(self, short=False, hash_abbrev=8):
+    return _git_head_hash(self, self.srcnode.abspath()+'/..', short=short, hash_abbrev=hash_abbrev)
