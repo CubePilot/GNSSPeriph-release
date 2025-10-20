@@ -760,10 +760,8 @@ void can_vprintf(uint8_t severity, const char *fmt, va_list ap)
 
         memcpy(pkt.text.data, &buffer_data[buffer_offset], pkt.text.len);
         buffer_offset += pkt.text.len;
-        if (AP_Periph_FW::no_iface_finished_dna) {
+        if (AP_Periph_FW::no_iface_finished_dna || !periph.dronecan->log_pub.broadcast(pkt)) {
             periph.log_buffer.push(pkt);   
-        } else {
-            periph.dronecan->log_pub.broadcast(pkt);
         }
     }
 }

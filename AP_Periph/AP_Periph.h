@@ -241,7 +241,7 @@ public:
     bool gps_in_safeboot;
 #endif
 
-    ObjectBuffer<uavcan_protocol_debug_LogMessage> log_buffer{20};
+    ObjectBuffer<uavcan_protocol_debug_LogMessage> log_buffer{200};
 
     ExpandingString uart_info;
 };

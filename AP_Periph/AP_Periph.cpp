@@ -163,6 +163,11 @@ void AP_Periph_FW::init()
     enable_gps = !g.serial_i2c_mode;
 #endif
     if (enable_gps) {
+#ifdef ENABLE_BASE_MODE
+        // Prepare GPS base configuration before GPS initialization
+        // This sets up the CFGv2 override config for the GPS driver
+        gps_base.prepare_ubx_base_cfg();
+#endif
         gps.init();
     } else {
 #ifdef GPIO_USART1_RX

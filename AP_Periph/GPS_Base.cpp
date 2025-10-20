@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <AP_GPS/AP_GPS_UBLOX.h>
 #include <AP_SerialLED/AP_SerialLED.h>
+#include <AP_HAL_ChibiOS/sdcard.h>
 
 #ifdef ENABLE_BASE_MODE
 
@@ -121,6 +122,53 @@ GPS_Base::GPS_Base() {
     AP_Param::setup_object_defaults(this, var_info);
 }
 
+void GPS_Base::prepare_ubx_base_cfg() {
+    if (!_enabled) {
+        return;
+    }
+
+#define UBX_CFG_PUSH(config_key, value) \
+    ppk_config.push<AP::UBXConfigKey::config_key>(value);
+
+    // Enable RTCM3X output on UART1
+    UBX_CFG_PUSH(CFG_UART1OUTPROT_RTCM3X, (uint8_t)1);
+
+    // Enable necessary messages on UART1
+    UBX_CFG_PUSH(CFG_MSGOUT_UBX_NAV_SVIN_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_UBX_NAV_PVT_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_RTCM_3X_TYPE1005_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_RTCM_3X_TYPE1074_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_RTCM_3X_TYPE1084_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_RTCM_3X_TYPE1094_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_RTCM_3X_TYPE1124_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_RTCM_3X_TYPE1230_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_UBX_RXM_RAWX_UART1, (uint8_t)1);
+    UBX_CFG_PUSH(CFG_MSGOUT_UBX_RXM_SFRBX_UART1, (uint8_t)1);
+
+    // Configure TMODE based on survey-in parameters
+    if (int(_s_in_lat*1000) == 0 && int(_s_in_lon*1000) == 0 && int(_s_in_alt*1000) == 0) {
+        // Survey-in mode
+        UBX_CFG_PUSH(CFG_TMODE_MODE, (uint8_t)1);
+        UBX_CFG_PUSH(CFG_TMODE_SVIN_MIN_DUR, uint32_t(ceil(_s_in_time)));
+        UBX_CFG_PUSH(CFG_TMODE_SVIN_ACC_LIMIT, uint32_t(_s_in_acc * 10000));
+    } else {
+        // Fixed position mode
+        UBX_CFG_PUSH(CFG_TMODE_MODE, (uint8_t)2);
+        UBX_CFG_PUSH(CFG_TMODE_POS_TYPE, (uint8_t)1);
+        UBX_CFG_PUSH(CFG_TMODE_FIXED_POS_ACC, (uint32_t)2000);
+        UBX_CFG_PUSH(CFG_TMODE_LAT, (uint32_t)(_s_in_lat * 1e7));
+        UBX_CFG_PUSH(CFG_TMODE_LAT_HP, (uint8_t)((_s_in_lat * 1e7 - int32_t(_s_in_lat * 1e7)) * 10));
+        UBX_CFG_PUSH(CFG_TMODE_LON, (uint32_t)(_s_in_lon * 1e7));
+        UBX_CFG_PUSH(CFG_TMODE_LON_HP, (uint8_t)((_s_in_lon * 1e7 - int32_t(_s_in_lon * 1e7)) * 10));
+        UBX_CFG_PUSH(CFG_TMODE_HEIGHT, (uint32_t)(_s_in_alt * 100));
+        UBX_CFG_PUSH(CFG_TMODE_HEIGHT_HP, (uint8_t)((_s_in_alt * 100 - int32_t(_s_in_alt * 100)) * 10));
+    }
+
+#undef UBX_CFG_PUSH
+    // Set override config for GPS instance 0
+    AP_GPS_UBLOX_CFGv2::override_ubx_cfg(0, ppk_config_data, ppk_config.get_size());
+}
+
 // convert week number and time of week to date/time
 void GPS_Base::gps_week_time(struct date_time &dt, const uint16_t week, const uint32_t tow)
 {
@@ -167,13 +215,14 @@ void GPS_Base::gps_week_time(struct date_time &dt, const uint16_t week, const ui
 
 void GPS_Base::parse_runtime_ubx(uint8_t byte) {
     if (parse_ubx(byte)) {
-        // handle RAWX message
+        // handle RAWX message for timestamp extraction
         if (_class == CLASS_RXM && _msg_id == MSG_RXM_RAWX) {
             if (_buffer.raw_rawx.week > 0 && _buffer.raw_rawx.rcvTow >= 0) {
                 gps_week_time(dt, (uint16_t)_buffer.raw_rawx.week, (uint32_t)(_buffer.raw_rawx.rcvTow * 1000));
                 can_printf("GPS: %d-%02d-%02d %02d:%02d:%02d\n", dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second);
             }
         } else if (_class == CLASS_NAV && _msg_id == MSG_NAV_SVIN) {
+            // handle survey-in status for LED feedback
             can_printf("GPS: Survey in status: %s Active:%d Acc:%fm\n", _buffer.nav_svin.valid ? "Valid":"Invalid", _buffer.nav_svin.active, _buffer.nav_svin.meanAcc/10000.0);
             if (_buffer.nav_svin.valid) {
                 can_printf("GPS: Survey in complete\n");
@@ -184,39 +233,6 @@ void GPS_Base::parse_runtime_ubx(uint8_t byte) {
             memcpy(&curr_svin, &_buffer.nav_svin, sizeof(curr_svin));
         }
     }
-}
-
-void GPS_Base::_update_checksum(uint8_t *data, uint16_t len, uint8_t &ck_a, uint8_t &ck_b)
-{
-    while (len--) {
-        ck_a += *data;
-        ck_b += ck_a;
-        data++;
-    }
-}
-
-bool GPS_Base::_send_message(uint8_t msg_class, uint8_t msg_id, const void *msg, uint16_t size)
-{
-    if (gps_uart->txspace() < (sizeof(struct ubx_header) + 2 + size)) {
-        return false;
-    }
-    // Debug("GPS: sending message %d %d\n", msg_class, msg_id);
-    struct ubx_header header;
-    uint8_t ck_a=0, ck_b=0;
-    header.preamble1 = UBX_PREAMBLE1;
-    header.preamble2 = UBX_PREAMBLE2;
-    header.msg_class = msg_class;
-    header.msg_id    = msg_id;
-    header.length    = size;
-
-    _update_checksum((uint8_t *)&header.msg_class, sizeof(header)-2, ck_a, ck_b);
-    _update_checksum((uint8_t *)msg, size, ck_a, ck_b);
-
-    gps_uart->write_locked((const uint8_t *)&header, sizeof(header), LOCK_ID);
-    gps_uart->write_locked((const uint8_t *)msg, size, LOCK_ID);
-    gps_uart->write_locked((const uint8_t *)&ck_a, 1, LOCK_ID);
-    gps_uart->write_locked((const uint8_t *)&ck_b, 1, LOCK_ID);
-    return true;
 }
 
 bool GPS_Base::parse_ubx(uint8_t data) {
@@ -317,266 +333,6 @@ reset:
     return false;
 }
 
-void GPS_Base::handle_ubx_msg()
-{
-    Debug("GPS: got message 0x%x 0x%x", _class, _msg_id);
-    switch (_class) {
-        case CLASS_ACK:
-            if (_msg_id == MSG_ACK_ACK) {
-                if (ubx_config_state == SETTING_SAVE_CONFIG) {
-                    if (_buffer.ack_ack.msg_class == CLASS_CFG &&
-                        _buffer.ack_ack.msg_id == MSG_CFG_CFG) {
-                        // move to next state
-                        can_printf("GPS_Base: config saved");
-                        ubx_config_state++;
-                    }
-                } else if (ubx_config_state == SETTING_SURVEYIN_CONFIG) {
-                    if (_buffer.ack_ack.msg_class == CLASS_CFG &&
-                        _buffer.ack_ack.msg_id == MSG_CFG_TMODE3) {
-                        ubx_config_state++;
-                    }
-                }
-            }
-            break;
-        case CLASS_MON:
-            if (_msg_id == MSG_MON_VER) {
-                can_printf("GPS_Base: SW Version: %s", _buffer.mon_ver.swVersion);
-                can_printf("GPS_Base: HW Version: %s", _buffer.mon_ver.hwVersion);
-                if (ubx_config_state == WAITING_FOR_VERSION) {
-                    // move to next state
-                    ubx_config_state++;
-                }
-            }
-            break;
-        case CLASS_CFG:
-            switch (_msg_id) {
-                case MSG_CFG_PRT:
-                    if (ubx_config_state == GETTING_PORT_INDEX &&
-                        (_buffer.cfg_prt.portID < ARRAY_SIZE(ubx_cfg_msg_rate_6::rates)) &&
-                        (_buffer.cfg_prt.outProtoMask & ((1U << 5)) &&(_buffer.cfg_prt.outProtoMask & (1U << 0)))) {
-                        Debug("Port ID: %d", _buffer.cfg_prt.portID);
-                        _ublox_port = _buffer.cfg_prt.portID;
-                        ubx_config_state++;
-                    } else if (ubx_config_state == GETTING_PORT_INDEX) {
-                        can_printf("GPS_Base: Port ID: %d %x", _buffer.cfg_prt.portID, _buffer.cfg_prt.outProtoMask);
-                        _buffer.cfg_prt.outProtoMask = ((1U << 5) | (1U << 0));
-                        _send_message(CLASS_CFG, MSG_CFG_PRT, (void*)&_buffer.cfg_prt, sizeof(ubx_cfg_prt));
-                    }
-                    break;
-                case MSG_CFG_RATE:
-                    if (ubx_config_state == SETTING_NAV_RATE) {
-                        // check that the rate has been set
-                        if (_buffer.cfg_nav_rate.measure_rate_ms == 1000 &&
-                            _buffer.cfg_nav_rate.nav_rate == 1 &&
-                            _buffer.cfg_nav_rate.timeref == 0) {
-                            // move to next state
-                            ubx_config_state++;
-                        } else {
-                            Debug("NAV RATE Incorrect");
-                            _update_setting = true;
-                        }
-                    }
-                    break;
-                case MSG_CFG_MSG:
-                    if (_buffer.cfg_msg_rate_6.msg_class == curr_msg.msg_class &&
-                        _buffer.cfg_msg_rate_6.msg_id == curr_msg.msg_id &&
-                        _payload_length == sizeof(ubx_cfg_msg_rate_6)) {
-                        // check that the rate has been set
-                        if (_buffer.cfg_msg_rate_6.rates[_ublox_port] == curr_msg.rate) {
-                            // move to next state
-                            Debug("MSG(0x%x, 0x%x) Set RATE: %d", curr_msg.msg_class, curr_msg.msg_id, _buffer.cfg_msg_rate_6.rates[_ublox_port]);
-                            ubx_config_state++;
-                        } else {
-                            Debug("MSG(0x%x, 0x%x) Incorrect RATE: %d", curr_msg.msg_class, curr_msg.msg_id, _buffer.cfg_msg_rate_6.rates[_ublox_port]);
-                            _update_setting = true;
-                        }
-                    }
-                    break;
-                default:
-                    break;
-            }
-        default:
-            break;
-    }
-}
-
-bool GPS_Base::configure_message_rate(uint8_t msg_class, uint8_t msg_id, uint8_t rate)
-{
-    if (!_update_setting) {
-        struct ubx_cfg_msg msg;
-        msg.msg_class = msg_class;
-        msg.msg_id = msg_id;
-        curr_msg.msg_class = msg_class;
-        curr_msg.msg_id = msg_id;
-        curr_msg.rate = rate;
-        return _send_message(CLASS_CFG, MSG_CFG_MSG, &msg, sizeof(msg));
-    } else {
-        curr_msg.msg_class = msg_class;
-        curr_msg.msg_id = msg_id;
-        curr_msg.rate = rate;
-        Debug("MSG(0x%x, 0x%x) Setting RATE: %d", curr_msg.msg_class, curr_msg.msg_id, curr_msg.rate);
-        _update_setting = false;
-        return _send_message(CLASS_CFG, MSG_CFG_MSG, &curr_msg, sizeof(curr_msg));
-    }
-}
-
-static uint32_t baudrates[] = { 9600, 19200, 38400, 57600, 115200, 230400, 921600 };
-uint8_t baudrate_index = 0;
-void GPS_Base::do_configurations()
-{
-    // run at 50Hz
-    if (AP_HAL::millis() - _last_config_ms < 20) {
-        return;
-    }
-    // process bytes from GPS
-    while (gps_uart->available_locked(LOCK_ID) > 0) {
-        uint8_t c;
-        if (gps_uart->read_locked(&c, 1, LOCK_ID)) {
-            if (parse_ubx(c)) {
-                handle_ubx_msg();
-            }
-        } else {
-            break;
-        }
-    }
-    _last_config_ms = AP_HAL::millis();
-    if (ubx_config_state == WAITING_FOR_VERSION) {
-        Debug("Trying baudrate %ld", baudrates[baudrate_index]);
-        // try next baudrate
-        gps_uart->begin_locked(baudrates[baudrate_index], 0,0, LOCK_ID);
-        baudrate_index++;
-        baudrate_index %= ARRAY_SIZE(baudrates);
-        ubx_config_state = SETTING_BAUD;
-    }
-    switch (ubx_config_state) {
-        case SETTING_BAUD: {
-            // send the startup blob
-            gps_uart->write_locked((const uint8_t*)UBLOX_SET_BINARY_460800, sizeof(UBLOX_SET_BINARY_460800), LOCK_ID);
-            ubx_config_state++;
-            break;
-        }
-        case CHECKING_VERSION:
-            // set baud rate to 460800
-            Debug("Checking version");
-            gps_uart->begin_locked(460800, 0, 0, LOCK_ID);
-            _send_message(CLASS_MON, MSG_MON_VER, NULL, 0);
-            ubx_config_state++;
-            break;
-        case WAITING_FOR_VERSION:
-            Debug("Waiting for version");
-            break;
-        case GETTING_PORT_INDEX:
-            Debug("Getting port index");
-            _send_message(CLASS_CFG, MSG_CFG_PRT, NULL, 0);
-            break;
-        case SETTING_NAV_RATE:
-            Debug("Setting nav rate");
-            struct ubx_cfg_nav_rate msg;
-            msg.measure_rate_ms = 1000; //1Hz
-            msg.nav_rate = 1;
-            msg.timeref = 0;
-            if (!_update_setting) {
-                _send_message(CLASS_CFG, MSG_CFG_RATE, nullptr, 0);
-            } else {
-                _send_message(CLASS_CFG, MSG_CFG_RATE, (uint8_t*)&msg, sizeof(msg));
-                _update_setting = false;    
-            }
-            break;
-        case SETTING_SURVEY_IN_RATE:
-            Debug("Setting survey in rate");
-            configure_message_rate(CLASS_NAV, MSG_NAV_SVIN, 1);
-            break;
-        case SETTING_PVT_RATE:
-            Debug("Setting PVT rate");
-            configure_message_rate(CLASS_NAV, MSG_NAV_PVT, 1);
-            break;
-        case SETTING_1005_RATE:
-            Debug("Setting 1005 rate");
-            configure_message_rate(0xf5, 0x05, 1);
-            break;
-        case SETTING_1074_RATE:
-            Debug("Setting 1074 rate");
-            configure_message_rate(0xf5, 0x4a, 1);
-            break;
-        case SETTING_1084_RATE:
-            Debug("Setting 1084 rate");
-            configure_message_rate(0xf5, 0x54, 1);
-            break;
-        case SETTING_1094_RATE:
-            Debug("Setting 1094 rate");
-            configure_message_rate(0xf5, 0x5e, 1);
-            break;
-        case SETTING_1124_RATE:
-            Debug("Setting 1124 rate");
-            configure_message_rate(0xf5, 0x7c, 1);
-            break;
-        case SETTING_1230_RATE:
-            Debug("Setting 1230 rate");
-            configure_message_rate(0xf5, 0xe6, 1);
-            break;
-        case SETTING_RXM_RAWX:
-            Debug("Setting RXM_RAWX rate");
-            configure_message_rate(CLASS_RXM, MSG_RXM_RAWX, 1);
-            break;
-        case SETTING_RXM_SFRBX:
-            Debug("Setting RXM_SFRBX rate");
-            configure_message_rate(CLASS_RXM, MSG_RXM_SFRBX, 1);
-            break;
-        case SETTING_SURVEYIN_CONFIG:
-            if ((AP_HAL::millis() - _last_surveyin_config_ms) > 1000) {
-                can_printf("GPS_Base: Setting survey in config");
-                ubx_cfg_tmode3 surveyin_cfg {};
-                if (int(_s_in_lat*1000) == 0 && int(_s_in_lon*1000) == 0 && int(_s_in_alt*1000) == 0) {
-                    surveyin_cfg.flags = 1;
-                    surveyin_cfg.fixedPosAcc = 0;
-                    surveyin_cfg.svinAccLimit = _s_in_acc*10000.0;
-                } else {
-                    surveyin_cfg.flags = 256 + 2; // LLA
-                    surveyin_cfg.ecefXOrLat = _s_in_lat*1e7;
-                    surveyin_cfg.ecefXOrLatHP = (_s_in_lat*1e7 - surveyin_cfg.ecefXOrLat)*100.0;
-                    surveyin_cfg.ecefYOrLon = _s_in_lon*1e7;
-                    surveyin_cfg.ecefYOrLonHP = (_s_in_lon*1e7 - surveyin_cfg.ecefYOrLon)*100.0;
-                    surveyin_cfg.ecefZOrAlt = _s_in_alt*100;
-                    surveyin_cfg.ecefZOrAltHP = (_s_in_alt*100 - surveyin_cfg.ecefZOrAlt)*100.0;
-                    surveyin_cfg.fixedPosAcc = 1;
-                    surveyin_cfg.svinAccLimit = 2000;
-                }
-                surveyin_cfg.svinMinDur = _s_in_time;
-                _last_surveyin_config_ms = AP_HAL::millis();
-                _send_message(CLASS_CFG, MSG_CFG_TMODE3, &surveyin_cfg, sizeof(surveyin_cfg));
-            }
-            break;
-        case SETTING_SAVE_CONFIG:
-            if ((AP_HAL::millis() - _last_save_config_ms) > 1000) {
-                can_printf("GPS_Base: Saving config");
-                static const ubx_cfg_cfg save_cfg {
-                    clearMask: 0,
-                    saveMask: SAVE_CFG_ALL,
-                    loadMask: 0
-                };
-                _last_save_config_ms = AP_HAL::millis();
-                _send_message(CLASS_CFG, MSG_CFG_CFG, &save_cfg, sizeof(save_cfg));
-            }
-            break;
-        case SETTING_COLD_START:
-            if ((AP_HAL::millis() - _last_save_config_ms) > 2000) {
-                can_printf("GPS_Base: Cold start");
-                static const ubx_cfg_reset cold_start {
-                    navBbrMask: 0xFFFF,
-                    resetMode: 0x02,
-                    reserved0: 0x00,
-                };
-                _send_message(CLASS_CFG, MSG_CFG_RST, &cold_start, sizeof(cold_start));
-                ubx_config_state++;
-            }
-            break;
-        case SETTING_FINISHED:
-            can_printf("GPS_Base: Configuration Finished");
-            _ppk_config_finished = true;
-            break;
-    };
-}
-
 void GPS_Base::update_leds()
 {
     if (!_s_in_enabled) {
@@ -625,12 +381,80 @@ void GPS_Base::update() {
         return;
     }
 
+    // Close log file if USB host has mounted the disk to prevent deadlock
+    // When host mounts disk, filesystem access blocks waiting for USB MSD
+    // which causes watchdog timeout (IERR 0x800 302)
+    if (sdcard_is_mounted_by_host() && ubx_log_fd != -1) {
+        _logging.set(false);
+        AP::FS().close(ubx_log_fd);
+        ubx_log_fd = -1;
+        can_printf("GPS_Base: Closed log file - USB disk mounted by host\n");
+    }
+
     update_leds();
 
     // lock the gcs and gps ports
-    gps_uart->lock_port(LOCK_ID, LOCK_ID);
     if (_s_in_enabled && !_ppk_config_finished) {
-        do_configurations();
+        // Wait for GPS driver CFGv2 configuration to complete, then cold start
+        auto *gps = AP_GPS::get_singleton();
+        if (gps && gps->is_configured(0)) {
+            // CFGv2 configuration complete, now do cold start to apply settings
+            static bool cold_start_sent = false;
+            static uint32_t cold_start_time_ms = 0;
+            gps_uart->lock_port(LOCK_ID, LOCK_ID);
+            if (!cold_start_sent) {
+
+                // Send UBX-CFG-RST for cold start
+                struct PACKED {
+                    uint16_t navBbrMask;
+                    uint8_t resetMode;
+                    uint8_t reserved0;
+                } cold_start_msg = {
+                    0xFFFF,  // navBbrMask: clear all
+                    0x02,    // resetMode: cold start (SW reset, GNSS only)
+                    0x00     // reserved
+                };
+
+                struct PACKED {
+                    uint8_t preamble1;
+                    uint8_t preamble2;
+                    uint8_t msg_class;
+                    uint8_t msg_id;
+                    uint16_t length;
+                } header = {
+                    0xb5, 0x62,  // UBX preamble
+                    CLASS_CFG,   // CFG class
+                    MSG_CFG_RST, // RST message
+                    sizeof(cold_start_msg)
+                };
+
+                uint8_t ck_a = 0, ck_b = 0;
+                // Calculate checksum
+                const uint8_t* ptr = (uint8_t*)&header.msg_class;
+                for (unsigned i = 0; i < sizeof(header) - 2; i++) {
+                    ck_a += ptr[i];
+                    ck_b += ck_a;
+                }
+                ptr = (uint8_t*)&cold_start_msg;
+                for (unsigned i = 0; i < sizeof(cold_start_msg); i++) {
+                    ck_a += ptr[i];
+                    ck_b += ck_a;
+                }
+
+                gps_uart->write_locked((const uint8_t*)&header, sizeof(header), LOCK_ID);
+                gps_uart->write_locked((const uint8_t*)&cold_start_msg, sizeof(cold_start_msg), LOCK_ID);
+                gps_uart->write_locked(&ck_a, 1, LOCK_ID);
+                gps_uart->write_locked(&ck_b, 1, LOCK_ID);
+
+                cold_start_sent = true;
+                cold_start_time_ms = AP_HAL::millis();
+            } else if (AP_HAL::millis() - cold_start_time_ms > 2000) {
+                // Wait 2 seconds after cold start for GPS to restart
+                can_printf("GPS_Base: Cold start complete, configuration finished");
+                _ppk_config_finished = true;
+                cold_start_sent = false;  // Reset for next time
+            }
+        }
         return;
     }
 
