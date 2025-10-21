@@ -34,10 +34,6 @@ jobs:
       run: ./waf configure --board HerePro -g
     - name: build
       run: ./waf clean && ./waf AP_Periph
-    - name: configure bootloader
-      run: ./waf configure --board HerePro --bootloader
-    - name: build
-      run: ./waf bootloader
     - name: copy HerePro files to release
       run: |
         mkdir -p release/
