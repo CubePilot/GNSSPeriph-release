@@ -11,40 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: ardupilot/ardupilot-dev-chibios:latest
-    env:
-      HERE3_CUBEID_TAG: v1.10
-      HERE4_CUBEID_TAG: v1.10
     steps:
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        type -p curl >/dev/null || sudo apt install curl -y
-        curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
-        sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
-        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        sudo apt update
-        sudo apt install gh jq -y
-        pip install intelhex
     - uses: actions/checkout@v3
       with:
         submodules: recursive
     - run: git config --system --add safe.directory /__w/GNSSPeriph-release/GNSSPeriph-release
-    - name: Download CubeID firmware for Here3+
-      run: |
-            export HERE3_ASSET_ID=$(gh api \
-            -H "Accept: application/vnd.github.v3.raw" \
-            -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE3_CUBEID_TAG) | .assets[] | select(.name=="serial_fw_update.bin") | .id')
-            echo "HERE3_ASSET_ID=$HERE3_ASSET_ID"
-            gh api \
-            -H "Accept: application/octet-stream" \
-            -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-            "repos/cubepilot/cubeid/releases/assets/$HERE3_ASSET_ID" > fw_update.bin
-            ls -al fw_update.bin
-            mkdir -p ardupilot/ROMFS_custom/
-            mv fw_update.bin ardupilot/ROMFS_custom/CubeID_fw.bin
-      env:
-          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
     - name: Prepare ccache timestamp
       id: ccache_cache_timestamp
       run: |
@@ -60,65 +31,6 @@ jobs:
       run: |
         . .github/workflows/ccache.env
     - name: configure
-      run: ./waf configure --board Here3+ -g
-    - name: build
-      run: ./waf clean && ./waf AP_Periph
-    - name: configure bootloader
-      run: ./waf configure --board Here3+ --bootloader
-    - name: build
-      run: ./waf bootloader
-    - name: copy Here3+ files to release
-      run: |
-        mkdir -p release/
-        cp build/Here3+/bin/AP_Periph.bin release/Here3Plus_FW.bin
-        cp build/Here3+/bin/AP_Periph_with_bl.hex release/Here3Plus_FW_with_bl.hex
-        cp build/Here3+/bin/AP_Periph release/Here3Plus_FW.elf
-        cp build/Here3+/bin/AP_Periph.apj release/Here3+_FW.apj
-
-    - name: Download CubeID firmware for Here4
-      run: |
-            export HERE4_ASSET_ID=$(gh api \
-            -H "Accept: application/vnd.github.v3.raw" \
-            -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-            "repos/cubepilot/cubeid/releases" | jq -r '.[] | select(.tag_name==env.HERE4_CUBEID_TAG) | .assets[] | select(.name=="fem_fw_update.bin") | .id')
-            echo "HERE4_ASSET_ID=$HERE4_ASSET_ID"
-            gh api \
-            -H "Accept: application/octet-stream" \
-            -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-            "repos/cubepilot/cubeid/releases/assets/$HERE4_ASSET_ID" > fw_update.bin
-            ls -al fw_update.bin
-            mkdir -p ardupilot/ROMFS_custom/
-            mv fw_update.bin ardupilot/ROMFS_custom/CubeID_fw.bin
-      env:
-          GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-    - name: configure
-      run: ./waf configure --board Here4 -g
-    - name: build
-      run: ./waf clean && ./waf AP_Periph
-    - name: configure bootloader
-      run: ./waf configure --board Here4 --bootloader
-    - name: build
-      run: ./waf bootloader
-    - name: copy Here4 files to release
-      run: |
-        cp build/Here4/bin/AP_Periph.bin release/Here4_FW.bin
-        cp build/Here4/bin/AP_Periph_with_bl.hex release/Here4_FW_with_bl.hex
-        cp build/Here4/bin/AP_Periph release/Here4_FW.elf
-        cp build/Here4/bin/AP_Periph.apj release/Here4_FW.apj
-    - name: copy Here4 bootloader for Here4AKM
-      run: |
-        cp bootloaders/Here4_bl.bin bootloaders/Here4AKM_bl.bin
-    - name: configure
-      run: ./waf configure --board Here4AKM -g
-    - name: build
-      run: ./waf clean && ./waf AP_Periph
-    - name: copy Here4AKM files to release
-      run: |
-        cp build/Here4AKM/bin/AP_Periph.bin release/Here4AKM_FW.bin
-        cp build/Here4AKM/bin/AP_Periph_with_bl.hex release/Here4AKM_FW_with_bl.hex
-        cp build/Here4AKM/bin/AP_Periph release/Here4AKM_FW.elf
-        cp build/Here4AKM/bin/AP_Periph.apj release/Here4AKM_FW.apj
-    - name: configure
       run: ./waf configure --board HerePro -g
     - name: build
       run: ./waf clean && ./waf AP_Periph
@@ -128,51 +40,16 @@ jobs:
       run: ./waf bootloader
     - name: copy HerePro files to release
       run: |
+        mkdir -p release/
         cp build/HerePro/bin/AP_Periph.bin release/HerePro_FW.bin
         cp build/HerePro/bin/AP_Periph_with_bl.hex release/HerePro_FW_with_bl.hex
         cp build/HerePro/bin/AP_Periph release/HerePro_FW.elf
         cp build/HerePro/bin/AP_Periph.apj release/HerePro_FW.apj
-    - name: configure
-      run: ./waf configure --board HereProAlpha -g
-    - name: build
-      run: ./waf clean && ./waf AP_Periph
-    - name: copy HereProAlpha files to release
-      run: |
-        cp build/HereProAlpha/bin/AP_Periph.bin release/HereProAlpha_FW.bin
-        cp build/HereProAlpha/bin/AP_Periph release/HereProAlpha_FW.elf
-        cp build/HereProAlpha/bin/AP_Periph.apj release/HereProAlpha_FW.apj
     - name: package release artifacts
       run: |
         mkdir -p artifacts
-        
-        # Create separate zip for each target
         cd release
-        
-        # Here3+ artifacts
-        if [ -f "Here3Plus_FW.bin" ]; then
-          zip -j ../artifacts/Here3Plus_FW.zip Here3Plus_FW.* Here3+_FW.apj
-        fi
-        
-        # Here4 artifacts  
-        if [ -f "Here4_FW.bin" ]; then
-          zip -j ../artifacts/Here4_FW.zip Here4_FW.*
-        fi
-        
-        # Here4AKM artifacts
-        if [ -f "Here4AKM_FW.bin" ]; then
-          zip -j ../artifacts/Here4AKM_FW.zip Here4AKM_FW.*
-        fi
-        
-        # HerePro artifacts
-        if [ -f "HerePro_FW.bin" ]; then
-          zip -j ../artifacts/HerePro_FW.zip HerePro_FW.*
-        fi
-        
-        # HereProAlpha artifacts
-        if [ -f "HereProAlpha_FW.bin" ]; then
-          zip -j ../artifacts/HereProAlpha_FW.zip HereProAlpha_FW.*
-        fi
-        
+        zip -j ../artifacts/HerePro_FW.zip HerePro_FW.*
         cd ..
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
