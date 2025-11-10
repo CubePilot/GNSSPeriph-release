@@ -55,6 +55,11 @@ jobs:
         # A file, directory or wildcard pattern that describes what to upload
         path: artifacts/
     # upload to github releases
+    - name: Install GitHub CLI
+      if: github.event_name == 'release'
+      run: |
+        apt-get update
+        apt-get install -y gh
     - name: Upload Release Assets
       if: github.event_name == 'release'
       env:
