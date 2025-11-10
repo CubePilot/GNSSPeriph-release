@@ -45,7 +45,7 @@ jobs:
       run: |
         mkdir -p artifacts
         cd release
-        zip -j ../artifacts/HerePro_FW.zip HerePro_FW.*
+        zip -j ../artifacts/HerePro_FW.zip HerePro_FW*
         cd ..
     - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
