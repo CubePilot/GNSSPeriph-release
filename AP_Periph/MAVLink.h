@@ -36,6 +36,7 @@ public:
 
     bool process_byte(const uint8_t c);
     void send_version() const;
+    void update_passthru(void);
 private:
     void handleMessage(const mavlink_message_t &msg);
     MAV_RESULT handle_preflight_reboot(const mavlink_command_long_t &packet);
@@ -46,6 +47,7 @@ private:
     void handle_cubepilot_firmware_update_resp(const mavlink_message_t &msg);
     void handle_odid_heartbeat(const mavlink_message_t &msg);
     uint8_t sysid_this_mav() const;
+    void passthru_timer(void);
 
     uint32_t cubeid_fw_size;
     uint32_t cubeid_fw_crc;
@@ -56,5 +58,22 @@ private:
     AP_HAL::UARTDriver *serial;
     mavlink_message_t chan_buffer;
     mavlink_status_t chan_status;
+    
+    // handle passthru between two UARTs
+    struct {
+        bool enabled;
+        bool timer_installed;
+        AP_HAL::UARTDriver *port1;
+        AP_HAL::UARTDriver *port2;
+        uint32_t start_ms;
+        uint32_t last_ms;
+        uint32_t last_port1_data_ms;
+        uint32_t baud1;
+        uint32_t baud2;
+        uint8_t parity1;
+        uint8_t parity2;
+        uint8_t timeout_s;
+        HAL_Semaphore sem;
+    } _passthru;
 };
 
