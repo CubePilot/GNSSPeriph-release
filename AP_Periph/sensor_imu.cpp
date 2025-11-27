@@ -18,7 +18,8 @@ void AP_Periph_DroneCAN::can_imu_update(void)
         if (imu.get_last_update_usec() == periph.last_imu_update_usec) {
             return;
         }
-
+        pkt.timestamp.usec = imu.get_last_update_usec();
+        periph.last_imu_update_usec = pkt.timestamp.usec;
         Vector3f tmp;
         imu.get_delta_velocity(tmp, pkt.integration_interval);
         pkt.accelerometer_integral[0] = tmp.x;
