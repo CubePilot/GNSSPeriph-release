@@ -1,0 +1,149 @@
+name: Update Manifest
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build GNSSPeriph"]
+    types: [completed]
+    branches: [release]
+
+jobs:
+  update-manifest:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'release')
+    steps:
+    - uses: actions/checkout@v3
+    - name: Update periph-manifest
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+      run: |
+        # Get latest release info
+        RELEASE_INFO=$(gh release view --json tagName,name,targetCommitish)
+        TAG=$(echo "$RELEASE_INFO" | jq -r '.tagName')
+        RELEASE_NAME=$(echo "$RELEASE_INFO" | jq -r '.name')
+
+        echo "Updating manifest for release: $TAG ($RELEASE_NAME)"
+
+        # Extract version (remove 'v' prefix if present)
+        VERSION="${TAG#v}"
+
+        # Parse version components
+        MAJOR=$(echo "$VERSION" | cut -d. -f1)
+        MINOR=$(echo "$VERSION" | cut -d. -f2)
+        PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+        # Get git SHA from release tag
+        git fetch --tags
+        GIT_SHA=$(git rev-list -n 1 "$TAG" 2>/dev/null)
+        if [ -z "$GIT_SHA" ]; then
+          GIT_SHA=$(git ls-remote origin "refs/tags/$TAG" | awk '{print $1}')
+        fi
+
+        echo "Version: $VERSION, SHA: $GIT_SHA"
+
+        # Clone the manifest repo
+        git clone https://x-access-token:${GITHUB_TOKEN}@github.com/CubePilot/periph-manifest.git
+        cd periph-manifest
+
+        # Define all boards: platform -> "zip_name:bin_name"
+        declare -A BOARDS
+        BOARDS["com.cubepilot.here3+"]="Here3Plus_FW.zip:Here3Plus_FW.bin"
+        BOARDS["com.cubepilot.here4"]="Here4_FW.zip:Here4_FW.bin"
+        BOARDS["com.cubepilot.herepro"]="HerePro_FW.zip:HerePro_FW.bin"
+        BOARDS["com.cubepilot.hereproalpha"]="HereProAlpha_FW.zip:HereProAlpha_FW.bin"
+
+        # Determine which boards to update based on release name
+        # Check in order from most specific to least specific
+        SELECTED_BOARDS=()
+        if echo "$RELEASE_NAME" | grep -qi "HereProAlpha"; then
+          SELECTED_BOARDS+=("com.cubepilot.hereproalpha")
+        elif echo "$RELEASE_NAME" | grep -qi "HerePro"; then
+          SELECTED_BOARDS+=("com.cubepilot.herepro")
+        elif echo "$RELEASE_NAME" | grep -qi "Here4"; then
+          SELECTED_BOARDS+=("com.cubepilot.here4")
+        elif echo "$RELEASE_NAME" | grep -qi "Here3"; then
+          SELECTED_BOARDS+=("com.cubepilot.here3+")
+        else
+          # No specific product in title, update all boards
+          SELECTED_BOARDS=("${!BOARDS[@]}")
+        fi
+
+        echo "Release name: $RELEASE_NAME"
+        echo "Updating boards: ${SELECTED_BOARDS[*]}"
+
+        # Update manifest.json for selected boards
+        for platform in "${SELECTED_BOARDS[@]}"; do
+          IFS=':' read -r zipname binname <<< "${BOARDS[$platform]}"
+          url="https://github.com/CubePilot/GNSSPeriph-release/releases/download/${TAG}/${zipname}"
+
+          echo "Updating $platform..."
+
+          # Check if platform already exists in manifest
+          if jq -e ".firmware[] | select(.platform == \"$platform\")" manifest.json > /dev/null 2>&1; then
+            # Update existing entry
+            jq --arg platform "$platform" \
+               --arg sha "$GIT_SHA" \
+               --arg url "$url" \
+               --arg binname "$binname" \
+               --arg version "$VERSION" \
+               --arg major "$MAJOR" \
+               --arg minor "$MINOR" \
+               --arg patch "$PATCH" \
+               '(.firmware[] | select(.platform == $platform)) |= . + {
+                 "git-sha": $sha,
+                 "url": $url,
+                 "format": "zip",
+                 "firmware-name": $binname,
+                 "mav-firmware-version-str": ("V" + $version),
+                 "mav-firmware-version": $version,
+                 "mav-firmware-version-major": $major,
+                 "mav-firmware-version-minor": $minor,
+                 "mav-firmware-version-patch": $patch
+               }' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          else
+            # Add new entry
+            jq --arg platform "$platform" \
+               --arg sha "$GIT_SHA" \
+               --arg url "$url" \
+               --arg binname "$binname" \
+               --arg version "$VERSION" \
+               --arg major "$MAJOR" \
+               --arg minor "$MINOR" \
+               --arg patch "$PATCH" \
+               '.firmware += [{
+                 "mav-autopilot": "ARDUPILOTMEGA",
+                 "vehicletype": "AP_Periph",
+                 "platform": $platform,
+                 "git-sha": $sha,
+                 "url": $url,
+                 "mav-type": "CAN_PERIPHERAL",
+                 "mav-firmware-version-type": "OFFICIAL",
+                 "mav-firmware-version-str": ("V" + $version),
+                 "latest": 0,
+                 "format": "zip",
+                 "firmware-name": $binname,
+                 "mav-firmware-version": $version,
+                 "mav-firmware-version-major": $major,
+                 "mav-firmware-version-minor": $minor,
+                 "mav-firmware-version-patch": $patch
+               }]' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          fi
+        done
+
+        # Configure git
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+
+        # Commit and push if there are changes
+        if ! git diff --quiet manifest.json; then
+          git add manifest.json
+          git commit -m "Update manifest for GNSSPeriph ${TAG}"
+          git push
+          echo "Manifest updated successfully"
+        else
+          echo "No changes to manifest"
+        fi
