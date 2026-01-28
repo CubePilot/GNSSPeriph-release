@@ -320,7 +320,8 @@ void AP_Periph_DroneCAN::handle_begin_firmware_update(const CanardRxTransfer& tr
         hal.scheduler->delay(1);
     }
 #endif
-
+    // flush comms cache
+    cacheBufferFlush((uint32_t)comms, sizeof(struct app_bootloader_comms));
     // instant reboot, with backup register used to give bootloader
     // the node_id
     periph.prepare_reboot();
@@ -390,6 +391,8 @@ void AP_Periph_DroneCAN::handle_restart_node(const CanardRxTransfer& transfer, c
     periph.dronecan->canard_iface.process(10);
     struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
     memset(comms, 0, sizeof(struct app_bootloader_comms));
+    // flush comms cache
+    cacheBufferFlush((uint32_t)comms, sizeof(struct app_bootloader_comms));
     periph.prepare_reboot();
     NVIC_SystemReset();
 }
