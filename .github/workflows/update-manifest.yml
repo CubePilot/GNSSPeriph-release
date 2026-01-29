@@ -21,12 +21,20 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
       run: |
-        # Get latest release info
-        RELEASE_INFO=$(gh release view --json tagName,name,targetCommitish)
+        # Get latest release info (gh release view returns the release marked as "Latest")
+        RELEASE_INFO=$(gh release view --json tagName,name,targetCommitish,isPrerelease,isDraft)
         TAG=$(echo "$RELEASE_INFO" | jq -r '.tagName')
         RELEASE_NAME=$(echo "$RELEASE_INFO" | jq -r '.name')
+        IS_PRERELEASE=$(echo "$RELEASE_INFO" | jq -r '.isPrerelease')
+        IS_DRAFT=$(echo "$RELEASE_INFO" | jq -r '.isDraft')
 
-        echo "Updating manifest for release: $TAG ($RELEASE_NAME)"
+        echo "Release: $TAG ($RELEASE_NAME), prerelease: $IS_PRERELEASE, draft: $IS_DRAFT"
+
+        # Only update manifest for releases marked as latest (not prerelease or draft)
+        if [ "$IS_PRERELEASE" == "true" ] || [ "$IS_DRAFT" == "true" ]; then
+          echo "Release is prerelease or draft, skipping manifest update"
+          exit 0
+        fi
 
         # Extract version (remove 'v' prefix if present)
         VERSION="${TAG#v}"
