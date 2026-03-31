@@ -145,6 +145,7 @@ public:
     bool ak09916_i2c_init();
     bool ak09916_read_register(uint8_t reg, uint8_t &data);
     bool ak09916_write_register(uint8_t reg, uint8_t data);
+    bool rm3100_spi_detect();
     bool is_ak09916_available;
 
     float get_yaw_earth() { return yaw_earth; }

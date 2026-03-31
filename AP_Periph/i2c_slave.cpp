@@ -13,6 +13,28 @@
 #define RM3100_I2C_ADDR4 0x23
 #define AK09916_I2C_ADDR 0x0C
 #define HAL_I2C_H7_400_TIMINGR 0x00300F38
+
+// RM3100 register addresses
+#define RM3100_CCX1_REG        0x04
+#define RM3100_CCX0_REG        0x05
+#define RM3100_CCY1_REG        0x06
+#define RM3100_CCY0_REG        0x07
+#define RM3100_CCZ1_REG        0x08
+#define RM3100_CCZ0_REG        0x09
+#define RM3100_TMRC_REG        0x0B
+#define RM3100_CMM_REG         0x01
+#define RM3100_BIST_REG        0x33
+
+// RM3100 default/config values
+#define CCP0    0xC8
+#define CCP1    0x00
+#define CCP0_DEFAULT 0xC8
+#define CCP1_DEFAULT 0x00
+#define GAIN_CC200 75.0f
+#define TMRC    0x94
+#define CMM     0x71
+#define RUN_SELF_TEST 0xFF
+
 extern const AP_HAL::HAL &hal;
 
 #define TIMEOUT_MS 5
@@ -48,13 +70,27 @@ void AP_Periph_FW::i2c_setup()
     //7Bit Address Mode
     I2C2->CR2 &= ~I2C_CR2_ADD10;
 
-    for (uint8_t i=0; i<10; i++) {
-        if (ak09916_i2c_init()) {
-            is_ak09916_available = true;
+    // Try RM3100 on SPI first
+    bool rm3100_detected = false;
+    for (uint8_t i = 0; i < 3; i++) {
+        if (rm3100_spi_detect()) {
+            rm3100_detected = true;
             break;
         }
         hal.scheduler->delay(10);
         stm32_watchdog_pat();
+    }
+
+    // Fall back to AK09916 on I2C4 if RM3100 not found
+    if (!rm3100_detected) {
+        for (uint8_t i = 0; i < 10; i++) {
+            if (ak09916_i2c_init()) {
+                is_ak09916_available = true;
+                break;
+            }
+            hal.scheduler->delay(10);
+            stm32_watchdog_pat();
+        }
     }
 
     if (is_ak09916_available) {
@@ -230,6 +266,75 @@ bool AP_Periph_FW::ak09916_recv_byte(uint8_t idx, uint8_t byte)
         // Use raw I2C register access for direct hardware control
         return ak09916_write_register(ak09916_transfer_reg, byte);
     }
+}
+
+// Detect RM3100 on SPI using BIST self-test
+bool AP_Periph_FW::rm3100_spi_detect()
+{
+    auto dev = hal.spi->get_device("rm3100");
+    if (!dev) {
+        return false;
+    }
+    dev->get_semaphore()->take_blocking();
+    // read has high bit set for SPI
+    dev->set_read_flag(0x80);
+
+    // high retries for init
+    dev->set_retries(10);
+
+    // use default cycle count values as a whoami test
+    uint8_t ccx0;
+    uint8_t ccx1;
+    uint8_t ccy0;
+    uint8_t ccy1;
+    uint8_t ccz0;
+    uint8_t ccz1;
+    if (!dev->read_registers(RM3100_CCX1_REG, &ccx1, 1) ||
+        !dev->read_registers(RM3100_CCX0_REG, &ccx0, 1) ||
+        !dev->read_registers(RM3100_CCY1_REG, &ccy1, 1) ||
+        !dev->read_registers(RM3100_CCY0_REG, &ccy0, 1) ||
+        !dev->read_registers(RM3100_CCZ1_REG, &ccz1, 1) ||
+        !dev->read_registers(RM3100_CCZ0_REG, &ccz0, 1) ||
+        ccx1 != CCP1_DEFAULT || ccx0 != CCP0_DEFAULT ||
+        ccy1 != CCP1_DEFAULT || ccy0 != CCP0_DEFAULT ||
+        ccz1 != CCP1_DEFAULT || ccz0 != CCP0_DEFAULT) {
+        // couldn't read one of the cycle count registers or didn't recognize the default cycle count values
+        dev->get_semaphore()->give();
+        return false;
+    }
+
+    dev->setup_checked_registers(8);
+
+    dev->write_register(RM3100_TMRC_REG, TMRC, true); // CMM data rate
+    dev->write_register(RM3100_CMM_REG, CMM, true); // CMM configuration
+    dev->write_register(RM3100_CCX1_REG, CCP1, true); // cycle count x
+    dev->write_register(RM3100_CCX0_REG, CCP0, true); // cycle count x
+    dev->write_register(RM3100_CCY1_REG, CCP1, true); // cycle count y
+    dev->write_register(RM3100_CCY0_REG, CCP0, true); // cycle count y
+    dev->write_register(RM3100_CCZ1_REG, CCP1, true); // cycle count z
+    dev->write_register(RM3100_CCZ0_REG, CCP0, true); // cycle count z
+
+    uint8_t bist;
+    // do a self test of Coils
+    dev->write_register(RM3100_BIST_REG, RUN_SELF_TEST);
+    // sleep for 1ms
+    hal.scheduler->delay(10);
+    dev->read_registers(RM3100_BIST_REG, &bist, 1);
+
+    if (bist != RUN_SELF_TEST) {
+        // BIST failed
+        dev->get_semaphore()->give();
+        return false;
+    }
+
+    // turn off BIST
+    dev->write_register(RM3100_BIST_REG, 0x00);
+
+    // lower retries for run
+    dev->set_retries(3);
+
+    dev->get_semaphore()->give();
+    return true;
 }
 
 // Initialize I2C4 for AK09916 master communication
