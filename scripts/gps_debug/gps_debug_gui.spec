@@ -32,6 +32,9 @@ else:
 hiddenimports = []
 hiddenimports += collect_submodules("dronecan")
 hiddenimports += collect_submodules("serial")
+# pymavlink resolves dialect modules dynamically via importlib;
+# without this they don't end up in the bundle and set_dialect ImportErrors.
+hiddenimports += collect_submodules("pymavlink")
 
 block_cipher = None
 

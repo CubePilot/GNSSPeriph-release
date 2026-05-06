@@ -178,6 +178,10 @@ def main():
         # Pure-Python deps PyInstaller's auto-discovery sometimes misses.
         "--collect-submodules", "dronecan",
         "--collect-submodules", "serial",
+        # pymavlink resolves dialect modules dynamically (set_dialect →
+        # importlib.import_module("pymavlink.dialects.v20.ardupilotmega"));
+        # without --collect-submodules they aren't bundled and import fails.
+        "--collect-submodules", "pymavlink",
         # Keep the gps_debug package importable from inside the bundle.
         "--paths", str(here.parent),
     ]
