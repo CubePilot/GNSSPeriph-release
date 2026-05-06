@@ -193,9 +193,12 @@ class GpsDebugGui:
                      values=["9600", "38400", "57600", "115200", "230400",
                              "460800", "921600"]).pack(side=tk.LEFT)
 
-        self.tunnel_lock_var = tk.IntVar(value=1)
+        self.tunnel_lock_var = tk.IntVar(value=0)
         ttk.Checkbutton(row2, text="Lock port (exclusive)",
                         variable=self.tunnel_lock_var).pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Label(row2,
+                  text="(locked → on-board GPS driver pauses, no Fix2/Aux until unlocked)",
+                  foreground="#777").pack(side=tk.LEFT)
 
         self.tunnel_record_var = tk.IntVar(value=0)
         ttk.Checkbutton(row2, text="Record RX to file",
