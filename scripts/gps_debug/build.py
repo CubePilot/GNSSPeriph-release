@@ -75,6 +75,26 @@ def _check_dependencies():
     return extra_paths
 
 
+def _find_dronecan_dsdl():
+    """Locate the directory containing dronecan's DSDL `.uavcan` files.
+
+    A pip-installed dronecan ships them at `<pkg>/dsdl_specs/`. The local
+    godronecan checkout used by the repo has them outside the package at
+    `<godronecan>/DSDL/`. We probe both layouts and return the one that exists,
+    or None if neither does.
+    """
+    import dronecan
+    pkg_dir = Path(dronecan.__file__).resolve().parent
+    candidates = [
+        pkg_dir / "dsdl_specs",                          # pip layout
+        pkg_dir.parent.parent / "DSDL",                  # godronecan layout
+    ]
+    for c in candidates:
+        if (c / "uavcan").is_dir():
+            return c
+    return None
+
+
 def main():
     here = Path(__file__).resolve().parent          # scripts/gps_debug/
     repo_root = here.parent.parent                   # repo root
@@ -110,6 +130,17 @@ def main():
         sys.exit(1)
 
     extra_paths = _check_dependencies()
+    dsdl_src = _find_dronecan_dsdl()
+    if dsdl_src is None:
+        print(
+            "\nERROR: could not locate dronecan's DSDL specs.\n"
+            "Tried <pkg>/dsdl_specs and <pkg>/../../DSDL — neither exists.\n"
+            "If you use a local checkout of godronecan, the DSDL should be at "
+            "<godronecan>/DSDL/ (containing uavcan/, dronecan/, etc).\n",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    print(f"bundling DSDL from: {dsdl_src}")
 
     # Decide one-file vs one-dir.
     is_macos = platform.system() == "Darwin"
@@ -151,6 +182,12 @@ def main():
     # so PyInstaller's static analyzer can scan them.
     for p in extra_paths:
         cmd += ["--paths", str(p)]
+
+    # Bundle the DSDL specs at dronecan/dsdl_specs inside the bundle so the
+    # library's normal `get_resource_path("dronecan", "dsdl_specs")` lookup
+    # works at runtime.
+    sep = ";" if platform.system() == "Windows" else ":"
+    cmd += ["--add-data", f"{dsdl_src}{sep}dronecan/dsdl_specs"]
     if args.console:
         cmd.append("--console")
     else:

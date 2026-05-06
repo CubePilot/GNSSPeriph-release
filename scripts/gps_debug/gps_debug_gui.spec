@@ -13,8 +13,21 @@ HERE = Path(SPECPATH)                   # scripts/gps_debug/
 ENTRY = str(HERE / "pyinstaller_entry.py")
 
 datas = []
-datas += collect_data_files("dronecan")     # bundles uavcan/* DSDL specs
+datas += collect_data_files("dronecan")     # picks up dsdl_specs only when present
 datas += collect_data_files("pymavlink")    # bundles MAVLink XML message defs
+
+# Locate DSDL: pip layout has it at <pkg>/dsdl_specs/, the local godronecan
+# checkout has it at <godronecan>/DSDL/. Bundle whichever exists at the path
+# the runtime loader expects (dronecan/dsdl_specs).
+import dronecan as _dc
+_pkg = Path(_dc.__file__).resolve().parent
+for _candidate in (_pkg / "dsdl_specs", _pkg.parent.parent / "DSDL"):
+    if (_candidate / "uavcan").is_dir():
+        datas.append((str(_candidate), "dronecan/dsdl_specs"))
+        break
+else:
+    raise SystemExit("Cannot locate dronecan DSDL specs (no dsdl_specs/ or "
+                     "godronecan-style ../DSDL/ found next to dronecan package)")
 
 hiddenimports = []
 hiddenimports += collect_submodules("dronecan")
