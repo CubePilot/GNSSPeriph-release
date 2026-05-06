@@ -690,7 +690,7 @@ AP_Periph_DroneCAN::AP_Periph_DroneCAN()
     log_pub.set_timeout_ms(1000);
 
     tunnel_pub.set_priority(CANARD_TRANSFER_PRIORITY_HIGH);
-    tunnel_pub.set_timeout_ms(5);
+    tunnel_pub.set_timeout_ms(150);
 
     param_getset_server.set_timeout_ms(200);
     param_executeopcode_server.set_timeout_ms(200);
