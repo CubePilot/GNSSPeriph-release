@@ -37,14 +37,27 @@ if getattr(sys, "frozen", False):
     if sys.stderr is None:
         sys.stderr = io.StringIO()
 
-    # (3) — silence pymavlink's runtime dialect regen.
+    # (3) — chdir to the bundle directory before pymavlink imports anything.
+    # `mavgen_python_dialect` calls `os.path.relpath(xml)` which compares the
+    # bundled XML path (always on C: in --onedir, or in _MEIPASS for --onefile)
+    # against the current working directory. When the user launches the .exe
+    # from a Parallels / UTM \\Mac\Home network share, the cwd is on a UNC
+    # mount and `relpath` raises `ValueError: path is on mount 'C:', start on
+    # mount '\\Mac\Home'`. Switching to a directory on C: avoids it entirely.
+    bundle_dir = getattr(sys, "_MEIPASS", None) or os.path.dirname(sys.executable)
+    try:
+        os.chdir(bundle_dir)
+    except OSError:
+        pass
+
+    # (4) — defensive: silence pymavlink's runtime dialect regen if the
+    # chdir above didn't help (e.g. unusual frozen layout). The bundle
+    # already ships the generated dialect modules.
     os.environ.setdefault("MAVLINK20", "1")
     try:
         from pymavlink.generator import mavgen as _mavgen
         _mavgen.mavgen_python_dialect = lambda *a, **kw: True
     except Exception:
-        # If pymavlink layout changes, fall through and let the real error
-        # surface in the log later rather than masking it here.
         pass
 
 from gps_debug.cli import main

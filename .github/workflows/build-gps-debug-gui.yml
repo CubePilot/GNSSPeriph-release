@@ -36,31 +36,51 @@ jobs:
         run: |
           python scripts/gps_debug/build.py --clean
 
-      # Each OS produces a different artefact shape:
-      #   Windows: dist/gps_debug_gui.exe   (single .exe from --onefile)
-      #   macOS:   dist/gps_debug_gui.app/  (.app bundle; --onedir is forced
-      #            because PyInstaller deprecated --onefile + --windowed on macOS)
-      #   Linux:   dist/gps_debug_gui       (single binary from --onefile)
+      # Build now uses --onedir on every OS, so each platform produces a
+      # directory in dist/ with the binary plus its bundled libs. macOS also
+      # gets a parallel .app bundle. upload-artifact strips the lowest-common
+      # -ancestor directory when given a single dir path, which would lose the
+      # gps_debug_gui/ (or .app/) wrapper. Stage each artefact inside a
+      # throwaway parent folder and upload that folder so the wrapper sticks.
+      - name: Stage Windows artefact
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir -p win_artefact
+          cp -R dist/gps_debug_gui win_artefact/
+
       - name: Upload Windows artefact
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: gps_debug_gui-windows
-          path: dist/gps_debug_gui.exe
+          path: win_artefact
           if-no-files-found: error
+
+      - name: Stage macOS artefact
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p macos_artefact
+          cp -R dist/gps_debug_gui.app macos_artefact/
 
       - name: Upload macOS artefact
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
           name: gps_debug_gui-macos
-          path: dist/gps_debug_gui.app
+          path: macos_artefact
           if-no-files-found: error
+
+      - name: Stage Linux artefact
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p linux_artefact
+          cp -R dist/gps_debug_gui linux_artefact/
 
       - name: Upload Linux artefact
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: gps_debug_gui-linux
-          path: dist/gps_debug_gui
+          path: linux_artefact
           if-no-files-found: error

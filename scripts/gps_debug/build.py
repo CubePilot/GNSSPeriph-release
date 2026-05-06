@@ -149,12 +149,15 @@ def main():
         sys.exit(2)
     if args.onefile:
         mode_flag = "--onefile"
-    elif args.onedir:
-        mode_flag = "--onedir"
     else:
-        # macOS: PyInstaller deprecated --onefile + --windowed (it cannot
-        # produce a single-file .app bundle). Default to --onedir there.
-        mode_flag = "--onedir" if is_macos else "--onefile"
+        # Default everywhere: --onedir.
+        # macOS: PyInstaller deprecated --onefile + --windowed (cannot make a
+        # single-file .app bundle).
+        # Windows: --onefile extracts to a temp dir on launch, which on a UNC
+        # shared filesystem causes pymavlink to crash on os.path.relpath
+        # (cross-drive). --onedir keeps every file on the launcher's drive.
+        # Linux: kept consistent with the others for predictable output shape.
+        mode_flag = "--onedir"
 
     workdir = Path(args.workdir).resolve()
     if args.clean:
