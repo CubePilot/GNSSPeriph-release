@@ -36,21 +36,31 @@ jobs:
         run: |
           python scripts/gps_debug/build.py --clean
 
-      - name: Rename binary with OS suffix
-        shell: bash
-        run: |
-          mkdir -p artefacts
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            cp dist/gps_debug_gui.exe "artefacts/gps_debug_gui-windows.exe"
-          elif [ "${{ runner.os }}" = "macOS" ]; then
-            cp dist/gps_debug_gui "artefacts/gps_debug_gui-macos"
-          else
-            cp dist/gps_debug_gui "artefacts/gps_debug_gui-linux"
-          fi
-
-      - name: Upload artefact
+      # Each OS produces a different artefact shape:
+      #   Windows: dist/gps_debug_gui.exe   (single .exe from --onefile)
+      #   macOS:   dist/gps_debug_gui.app/  (.app bundle; --onedir is forced
+      #            because PyInstaller deprecated --onefile + --windowed on macOS)
+      #   Linux:   dist/gps_debug_gui       (single binary from --onefile)
+      - name: Upload Windows artefact
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: gps_debug_gui-${{ runner.os }}
-          path: artefacts/
+          name: gps_debug_gui-windows
+          path: dist/gps_debug_gui.exe
+          if-no-files-found: error
+
+      - name: Upload macOS artefact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gps_debug_gui-macos
+          path: dist/gps_debug_gui.app
+          if-no-files-found: error
+
+      - name: Upload Linux artefact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gps_debug_gui-linux
+          path: dist/gps_debug_gui
           if-no-files-found: error
