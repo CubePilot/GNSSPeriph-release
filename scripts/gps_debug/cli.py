@@ -18,7 +18,7 @@ def parse_args():
     )
     p.add_argument("port", nargs="?", default=None,
                    help="dronecan device URL (optional; if omitted welcome window asks for it)")
-    p.add_argument("--node-id", type=int, default=125, help="local DroneCAN node ID (default 125)")
+    p.add_argument("--node-id", type=int, default=127, help="local DroneCAN node ID (default 127)")
     p.add_argument("--bus", type=int, default=1, help="CAN bus number on the autopilot (default 1)")
     p.add_argument("--target-system", type=int, default=0, help="MAVLink target system id (0 = first seen)")
     p.add_argument("--baudrate", type=int, default=115200, help="serial baud (only for serial mavcan ports)")
@@ -29,8 +29,38 @@ def parse_args():
     return p.parse_args()
 
 
+def _verify_pyserial():
+    """Catch the 'pip install serial' vs 'pip install pyserial' mistake.
+
+    The two packages share the `serial` import name. If the wrong one is
+    installed, `import serial` succeeds but `serial.SerialException` /
+    `serial.Serial` are missing, and the failure surfaces deep inside a
+    multiprocessing child as `AttributeError: module 'serial' has no
+    attribute 'SerialException'` — extremely confusing.
+    """
+    try:
+        import serial as _s
+    except ImportError:
+        print("ERROR: pyserial is not installed.\n"
+              "    pip install pyserial", file=sys.stderr)
+        sys.exit(2)
+    if not hasattr(_s, "SerialException") or not hasattr(_s, "Serial"):
+        loc = getattr(_s, "__file__", "(unknown)")
+        print(
+            "ERROR: the wrong `serial` module is installed (probably the\n"
+            "       unrelated 'serial' package, not 'pyserial'). Found at:\n"
+            f"           {loc}\n"
+            "       Fix:\n"
+            "           pip uninstall -y serial\n"
+            "           pip install --force-reinstall pyserial\n",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
 def main():
     freeze_support()
+    _verify_pyserial()
     args = parse_args()
 
     defaults = dict(

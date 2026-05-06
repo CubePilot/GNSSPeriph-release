@@ -28,14 +28,20 @@ import sys
 from multiprocessing import freeze_support
 
 if getattr(sys, "frozen", False):
-    # (1) — must be the first thing the spawned worker sees.
-    freeze_support()
-
-    # (2) — give multiprocessing somewhere safe to write tracebacks.
+    # (1) — give multiprocessing somewhere safe to write tracebacks BEFORE
+    # freeze_support runs the child target. Order matters: in a spawned child
+    # under --windowed Windows, sys.stdout/sys.stderr are None and freeze_support
+    # never returns (it dispatches to the target and exits), so any code below
+    # freeze_support() does NOT execute in the child. If the child target
+    # writes a traceback to stderr, the unhandled `NoneType.write` AttributeError
+    # silently kills the io subprocess and the parent's queues go dry.
     if sys.stdout is None:
         sys.stdout = io.StringIO()
     if sys.stderr is None:
         sys.stderr = io.StringIO()
+
+    # (2) — now safe to dispatch to the spawned child target if we're one.
+    freeze_support()
 
     # (3) — chdir to the bundle directory before pymavlink imports anything.
     # `mavgen_python_dialect` calls `os.path.relpath(xml)` which compares the

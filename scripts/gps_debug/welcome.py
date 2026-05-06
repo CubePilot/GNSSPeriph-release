@@ -84,8 +84,8 @@ class WelcomeDialog:
             row=5, column=2, sticky=tk.W, **pad)
 
         ttk.Label(body, text="Local node ID:").grid(row=6, column=0, sticky=tk.W, **pad)
-        self.node_id_var = tk.StringVar(value=str(defaults.get("node_id", 125)))
-        ttk.Spinbox(body, from_=1, to=125, textvariable=self.node_id_var, width=6).grid(
+        self.node_id_var = tk.StringVar(value=str(defaults.get("node_id", 127)))
+        ttk.Spinbox(body, from_=1, to=127, textvariable=self.node_id_var, width=6).grid(
             row=6, column=1, sticky=tk.W, **pad)
         ttk.Label(body, text="(this script's DroneCAN node id, must be unique)",
                   foreground="#777").grid(row=6, column=2, sticky=tk.W, **pad)
