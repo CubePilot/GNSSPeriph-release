@@ -1,8 +1,9 @@
 """Main GUI window: nodes table, GPS telemetry, options, tunnel, log."""
 
+import os
 import time
 import tkinter as tk
-from tkinter import messagebox, scrolledtext, ttk
+from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from .constants import (
     FIX2_MODE,
@@ -26,7 +27,7 @@ class GpsDebugGui:
 
         use_hover_friendly_theme(root)
         root.title("Cube CAN GPS Debug")
-        root.geometry("1100x720")
+        root.geometry("1020x880")
 
         # Each panel keeps its natural height; the log at the bottom expands to
         # fill leftover space. The Treeview has its own horizontal scrollbar
@@ -84,7 +85,7 @@ class GpsDebugGui:
         frm.pack(fill=tk.X, padx=6, pady=4)
         cols = ("nid", "name", "hw", "sw", "mode", "health", "uptime", "vendor")
         self.tree = ttk.Treeview(frm, columns=cols, show="headings", height=6, selectmode="browse")
-        widths = {"nid": 60, "name": 260, "hw": 70, "sw": 280, "mode": 90, "health": 80, "uptime": 80, "vendor": 80}
+        widths = {"nid": 60, "name": 180, "hw": 70, "sw": 280, "mode": 90, "health": 80, "uptime": 80, "vendor": 80}
         labels = {"nid": "NodeID", "name": "Name", "hw": "HW", "sw": "SW (vcs/crc)", "mode": "Mode",
                   "health": "Health", "uptime": "Uptime", "vendor": "Vendor"}
         for c in cols:
@@ -102,16 +103,32 @@ class GpsDebugGui:
     def _build_gps_panel(self):
         frm = ttk.LabelFrame(self.body, text="GPS telemetry (selected node)", padding=6)
         frm.pack(fill=tk.X, padx=6, pady=4)
+
+        # Glitch banner — sits above the telemetry grid.
+        glitch_row = ttk.Frame(frm); glitch_row.pack(fill=tk.X, pady=(0, 4))
+        self._glitch_blink_on = False
+        self.glitch_label = tk.Label(glitch_row, text="GPS OK", anchor=tk.W,
+                                     font=("TkDefaultFont", 11, "bold"),
+                                     foreground="#2a8f2a", padx=8, pady=2)
+        self.glitch_label.pack(side=tk.LEFT)
+        # Capture the system default background so we can restore it later —
+        # on macOS aqua-derived themes, `background=""` is a no-op.
+        self._glitch_default_bg = self.glitch_label.cget("background")
+        ttk.Button(glitch_row, text="Reset / Re-arm",
+                   command=self._do_glitch_reset).pack(side=tk.LEFT, padx=(8, 0))
+
         inner = self._hscroll_frame(frm)
         self.gps_vars = {k: tk.StringVar(value="—") for k in (
             "fix", "sats", "lat", "lon", "alt_msl", "alt_ellip",
             "vel_n", "vel_e", "vel_d", "hdop", "vdop", "pdop", "age_fix2", "age_aux"
         )}
         rows = [
-            [("Fix", "fix"), ("Sats used/visible", "sats"), ("HDOP", "hdop"), ("VDOP", "vdop"), ("PDOP", "pdop")],
-            [("Lat (deg)", "lat"), ("Lon (deg)", "lon"), ("Alt MSL (m)", "alt_msl"), ("Alt ellip (m)", "alt_ellip")],
-            [("VelN (m/s)", "vel_n"), ("VelE (m/s)", "vel_e"), ("VelD (m/s)", "vel_d"),
-             ("Fix2 age (s)", "age_fix2"), ("Aux age (s)", "age_aux")],
+            [("Fix", "fix"), ("Sats used/visible", "sats")],
+            [("Lat (deg)", "lat"), ("Lon (deg)", "lon")],
+            [("Alt MSL (m)", "alt_msl"), ("Alt ellip (m)", "alt_ellip")],
+            [("VelN (m/s)", "vel_n"), ("VelE (m/s)", "vel_e"), ("VelD (m/s)", "vel_d")],
+            [("HDOP", "hdop"), ("VDOP", "vdop"), ("PDOP", "pdop")],
+            [("Fix2 age (s)", "age_fix2"), ("Aux age (s)", "age_aux")],
         ]
         for r, row in enumerate(rows):
             for c, (label, key) in enumerate(row):
@@ -147,44 +164,62 @@ class GpsDebugGui:
         frm.pack(fill=tk.X, padx=6, pady=4)
         inner = self._hscroll_frame(frm)
 
-        row = ttk.Frame(inner); row.pack(fill=tk.X, pady=2)
-
-        ttk.Label(row, text="TCP port:").pack(side=tk.LEFT, padx=(2, 2))
+        # Row 1 — TCP listener config
+        row1 = ttk.Frame(inner); row1.pack(fill=tk.X, pady=2)
+        ttk.Label(row1, text="TCP port:").pack(side=tk.LEFT, padx=(2, 2))
         self.tunnel_port_var = tk.StringVar(value="2001")
-        ttk.Entry(row, textvariable=self.tunnel_port_var, width=7).pack(side=tk.LEFT)
+        ttk.Entry(row1, textvariable=self.tunnel_port_var, width=7).pack(side=tk.LEFT)
 
-        ttk.Label(row, text="Bind:").pack(side=tk.LEFT, padx=(8, 2))
-        self.tunnel_host_var = tk.StringVar(value="127.0.0.1")
-        ttk.Entry(row, textvariable=self.tunnel_host_var, width=14).pack(side=tk.LEFT)
+        ttk.Label(row1, text="Bind:").pack(side=tk.LEFT, padx=(8, 2))
+        # 0.0.0.0 accepts connections from any interface — change to 127.0.0.1
+        # if you only want local clients (u-center on the same machine).
+        self.tunnel_host_var = tk.StringVar(value="0.0.0.0")
+        ttk.Entry(row1, textvariable=self.tunnel_host_var, width=14).pack(side=tk.LEFT)
 
-        ttk.Label(row, text="Serial id:").pack(side=tk.LEFT, padx=(8, 2))
-        self.tunnel_serial_var = tk.StringVar(value="-1")
-        ttk.Combobox(row, textvariable=self.tunnel_serial_var, width=4,
+        # Row 2 — link config (serial id / baud / lock flag)
+        row2 = ttk.Frame(inner); row2.pack(fill=tk.X, pady=2)
+        ttk.Label(row2, text="Serial id:").pack(side=tk.LEFT, padx=(2, 2))
+        # Here4 / Here3+ have the u-blox UART on USART2 which is index 3 in
+        # their SERIAL_ORDER (HAL_GPS_SERIAL_PASSTHROUGH=3 in Here4 hwdef).
+        # -1 asks the periph to auto-pick via SerialManager — works on boards
+        # where the GPS protocol is registered there.
+        self.tunnel_serial_var = tk.StringVar(value="3")
+        ttk.Combobox(row2, textvariable=self.tunnel_serial_var, width=4,
                      values=["-1", "0", "1", "2", "3"]).pack(side=tk.LEFT)
 
-        ttk.Label(row, text="Baud:").pack(side=tk.LEFT, padx=(8, 2))
-        self.tunnel_baud_var = tk.StringVar(value="115200")
-        ttk.Combobox(row, textvariable=self.tunnel_baud_var, width=8,
+        ttk.Label(row2, text="Baud:").pack(side=tk.LEFT, padx=(8, 2))
+        self.tunnel_baud_var = tk.StringVar(value="230400")
+        ttk.Combobox(row2, textvariable=self.tunnel_baud_var, width=8,
                      values=["9600", "38400", "57600", "115200", "230400",
                              "460800", "921600"]).pack(side=tk.LEFT)
 
         self.tunnel_lock_var = tk.IntVar(value=1)
-        ttk.Checkbutton(row, text="Lock port (exclusive)",
+        ttk.Checkbutton(row2, text="Lock port (exclusive)",
                         variable=self.tunnel_lock_var).pack(side=tk.LEFT, padx=(10, 2))
 
-        self.tunnel_start_btn = ttk.Button(row, text="Start", command=self._do_tunnel_start)
-        self.tunnel_start_btn.pack(side=tk.LEFT, padx=(10, 2))
-        self.tunnel_stop_btn = ttk.Button(row, text="Stop",
+        self.tunnel_record_var = tk.IntVar(value=0)
+        ttk.Checkbutton(row2, text="Record RX to file",
+                        variable=self.tunnel_record_var).pack(side=tk.LEFT, padx=(10, 2))
+        self.tunnel_record_path_var = tk.StringVar(value="")
+        ttk.Entry(row2, textvariable=self.tunnel_record_path_var, width=28).pack(side=tk.LEFT, padx=(2, 2))
+        ttk.Button(row2, text="Browse…", width=8,
+                   command=self._do_tunnel_record_browse).pack(side=tk.LEFT)
+
+        # Row 3 — controls + status
+        row3 = ttk.Frame(inner); row3.pack(fill=tk.X, pady=2)
+        self.tunnel_start_btn = ttk.Button(row3, text="Start", command=self._do_tunnel_start)
+        self.tunnel_start_btn.pack(side=tk.LEFT, padx=(2, 2))
+        self.tunnel_stop_btn = ttk.Button(row3, text="Stop",
                                           command=self._do_tunnel_stop, state=tk.DISABLED)
         self.tunnel_stop_btn.pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(row, text="Status:").pack(side=tk.LEFT, padx=(10, 2))
+        ttk.Label(row3, text="Status:").pack(side=tk.LEFT, padx=(10, 2))
         self.tunnel_status_var = tk.StringVar(value="stopped")
-        ttk.Label(row, textvariable=self.tunnel_status_var,
+        ttk.Label(row3, textvariable=self.tunnel_status_var,
                   font=("TkFixedFont",), foreground="#0066cc").pack(side=tk.LEFT)
 
         self.tunnel_bytes_var = tk.StringVar(value="")
-        ttk.Label(row, textvariable=self.tunnel_bytes_var,
+        ttk.Label(row3, textvariable=self.tunnel_bytes_var,
                   font=("TkFixedFont",), foreground="#666").pack(side=tk.LEFT, padx=(10, 2))
 
     def _build_log(self):
@@ -248,11 +283,25 @@ class GpsDebugGui:
             self.debug_var.set(0)
             return
         nid = self.selected_node
-        if self.debug_var.get():
+        enabled = bool(self.debug_var.get())
+        if enabled:
             new_val = self.last_options_seen | GPS_DRV_BIT_UBX_DEBUG
         else:
             new_val = self.last_options_seen & ~GPS_DRV_BIT_UBX_DEBUG
+        self._suggest_tunnel_baud_for_debug(enabled)
         self.worker.post(lambda: self.worker.request_set_gps_drv_options(nid, new_val))
+
+    def _suggest_tunnel_baud_for_debug(self, debug_enabled):
+        """Bump the suggested tunnel baudrate when UBX debug output is on.
+
+        UBX debug strings flood the link, so 921600 is needed to keep up;
+        without debug, the GPS UART runs comfortably at 230400.
+        Only adjusts the *default* shown in the dropdown — does not touch
+        an already-running tunnel session.
+        """
+        if self.worker.tunnel is not None:
+            return  # tunnel already running, don't yank baud out from under it
+        self.tunnel_baud_var.set("921600" if debug_enabled else "230400")
 
     def _do_tunnel_start(self):
         if not self._require_selection():
@@ -271,6 +320,15 @@ class GpsDebugGui:
         lock = bool(self.tunnel_lock_var.get())
         target_node = self.selected_node
 
+        record_path = None
+        if self.tunnel_record_var.get():
+            record_path = self.tunnel_record_path_var.get().strip()
+            if not record_path:
+                # Auto-name: ~/ublox_node<NID>_<YYYYMMDD-HHMMSS>.ubx
+                fname = f"ublox_node{target_node}_{time.strftime('%Y%m%d-%H%M%S')}.ubx"
+                record_path = os.path.join(os.path.expanduser("~"), fname)
+                self.tunnel_record_path_var.set(record_path)
+
         ts = TunnelSession(
             worker=self.worker,
             target_node=target_node,
@@ -281,6 +339,7 @@ class GpsDebugGui:
             listen_port=port,
             log_cb=lambda line: self.log_line(line),
             status_cb=lambda s: self.root.after(0, self.tunnel_status_var.set, s),
+            record_path=record_path,
         )
         try:
             ts.start()
@@ -290,6 +349,32 @@ class GpsDebugGui:
         self.worker.tunnel = ts
         self.tunnel_start_btn.configure(state=tk.DISABLED)
         self.tunnel_stop_btn.configure(state=tk.NORMAL)
+
+    def _do_glitch_reset(self):
+        if self.selected_node is None:
+            # Nothing to reset, but still bounce the indicator back to OK in
+            # case it was sticky from a prior selection.
+            self._update_glitch_indicator(None)
+            return
+        nid = self.selected_node
+        self.worker.post(lambda: self.worker.clear_glitch(nid))
+
+    def _do_tunnel_record_browse(self):
+        # Suggest a filename based on the selected node id (if any).
+        nid = self.selected_node if self.selected_node is not None else "any"
+        suggested = f"ublox_node{nid}_{time.strftime('%Y%m%d-%H%M%S')}.ubx"
+        cur = self.tunnel_record_path_var.get().strip()
+        initialdir = os.path.dirname(cur) if cur else os.path.expanduser("~")
+        path = filedialog.asksaveasfilename(
+            title="Record u-blox stream to…",
+            initialdir=initialdir or os.path.expanduser("~"),
+            initialfile=suggested,
+            defaultextension=".ubx",
+            filetypes=[("u-blox raw", "*.ubx"), ("Binary log", "*.bin"), ("All files", "*")],
+        )
+        if path:
+            self.tunnel_record_path_var.set(path)
+            self.tunnel_record_var.set(1)
 
     def _do_tunnel_stop(self):
         ts = self.worker.tunnel
@@ -319,10 +404,13 @@ class GpsDebugGui:
                     if self.selected_node is not None else {}
                 opts = self.worker.gps_drv_options.get(self.selected_node) \
                     if self.selected_node is not None else None
+                glitch = dict(self.worker.gps_glitch.get(self.selected_node, {})) \
+                    if self.selected_node is not None else {}
 
             self.status_var.set(f"nodes: {len(nodes_snapshot)}")
             self._refresh_nodes_table(nodes_snapshot)
             self._refresh_gps_panel(gps_snapshot)
+            self._update_glitch_indicator(glitch or None)
 
             if (self._await_fix_for_read
                     and self.selected_node is not None
@@ -334,16 +422,25 @@ class GpsDebugGui:
 
             ts = self.worker.tunnel
             if ts is not None:
-                self.tunnel_bytes_var.set(f"TX {ts.bytes_tx} B / RX {ts.bytes_rx} B")
+                stats = f"TX {ts.bytes_tx} B / RX {ts.bytes_rx} B"
+                if ts.record_path:
+                    stats += f" / REC {ts.bytes_recorded} B"
+                self.tunnel_bytes_var.set(stats)
 
-            if opts is not None and opts != self.last_options_seen:
-                self.last_options_seen = opts
+            if opts is not None:
+                # Always refresh the displayed text — this clears the
+                # "(reading…)" placeholder even when a Re-read returns the
+                # same value as before.
                 self.opts_value_var.set(f"0x{opts:04x}  ({opts})")
-                self._suppress_write = True
-                try:
-                    self.debug_var.set(1 if (opts & GPS_DRV_BIT_UBX_DEBUG) else 0)
-                finally:
-                    self._suppress_write = False
+                if opts != self.last_options_seen:
+                    self.last_options_seen = opts
+                    debug_on = bool(opts & GPS_DRV_BIT_UBX_DEBUG)
+                    self._suppress_write = True
+                    try:
+                        self.debug_var.set(1 if debug_on else 0)
+                    finally:
+                        self._suppress_write = False
+                    self._suggest_tunnel_baud_for_debug(debug_on)
         finally:
             self.root.after(250, self._refresh_gui)
 
@@ -397,6 +494,29 @@ class GpsDebugGui:
         now = time.time()
         self.gps_vars["age_fix2"].set(f"{now - s['last_fix2']:.1f}" if "last_fix2" in s else "—")
         self.gps_vars["age_aux"].set(f"{now - s['last_aux']:.1f}" if "last_aux" in s else "—")
+
+    def _update_glitch_indicator(self, glitch):
+        """Toggle the indicator: green 'GPS OK' when no glitch, flashing red
+        with the reason when one is latched. Refresh runs at 250 ms so the
+        flash period is ~500 ms.
+        """
+        if not glitch:
+            self._glitch_blink_on = False
+            # background must be a valid color — empty string raises TclError
+            # on macOS, so restore the captured system default.
+            self.glitch_label.configure(text="GPS OK", foreground="#2a8f2a",
+                                        background=self._glitch_default_bg)
+            return
+        self._glitch_blink_on = not self._glitch_blink_on
+        if self._glitch_blink_on:
+            bg, fg = "#cc0000", "#ffffff"
+        else:
+            bg, fg = "#660000", "#ffdada"
+        ts = time.strftime("%H:%M:%S", time.localtime(glitch.get("ts", time.time())))
+        self.glitch_label.configure(
+            text=f"⚠ GPS GLITCH @ {ts}: {glitch.get('reason', '?')}",
+            foreground=fg, background=bg,
+        )
 
     @staticmethod
     def _fmt_uptime(secs):

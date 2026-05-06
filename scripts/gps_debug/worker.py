@@ -48,6 +48,8 @@ class CanWorker(threading.Thread):
         self.nodes = {}              # node_id -> {name, hw_ver, sw_ver, mode, health, uptime, vendor, last_seen}
         self.gps_state = {}          # node_id -> last Fix2/Auxiliary fields
         self.gps_drv_options = {}    # node_id -> latest known GPS_DRV_OPTIONS value
+        self.gps_glitch = {}         # node_id -> {"reason": str, "ts": float}; latched until cleared
+        self._prev_fix2 = {}         # node_id -> last Fix2 snapshot for delta-based detection
 
         self._action_q = queue.Queue()
 
@@ -165,8 +167,10 @@ class CanWorker(threading.Thread):
     def _on_fix2(self, event):
         nid = event.transfer.source_node_id
         m = event.message
+        now = time.time()
         with self._lock:
             s = self.gps_state.setdefault(nid, {})
+            prev = self._prev_fix2.get(nid)
             s["fix_status"] = m.status
             s["fix_mode"] = m.mode
             s["fix_submode"] = m.sub_mode
@@ -179,7 +183,62 @@ class CanWorker(threading.Thread):
             s["vel_n"] = m.ned_velocity[0] if len(m.ned_velocity) > 0 else 0.0
             s["vel_e"] = m.ned_velocity[1] if len(m.ned_velocity) > 1 else 0.0
             s["vel_d"] = m.ned_velocity[2] if len(m.ned_velocity) > 2 else 0.0
-            s["last_fix2"] = time.time()
+            s["last_fix2"] = now
+            # Snapshot for next-tick delta comparison.
+            cur = {k: s[k] for k in
+                   ("fix_status", "sats_used", "lat_deg", "lon_deg", "alt_msl_m")}
+            cur["ts"] = now
+            self._prev_fix2[nid] = cur
+
+        if prev is not None:
+            self._check_glitch(nid, prev, cur)
+
+    def _check_glitch(self, nid, prev, cur):
+        """Compare consecutive Fix2 samples; latch a glitch if any rule trips.
+
+        Latched glitches stay set until clear_glitch(nid) is called from the GUI.
+        Subsequent events do not overwrite an already-latched reason.
+        """
+        with self._lock:
+            if nid in self.gps_glitch:
+                return  # already latched, stay latched until reset
+        reason = None
+        # 1. Sat count drop — only trip if we *had* a healthy view before.
+        if prev["sats_used"] >= 6 and cur["sats_used"] <= prev["sats_used"] - 4:
+            reason = (f"sats dropped {prev['sats_used']} -> {cur['sats_used']}")
+        # 2. Fix downgrade from 3D fix.
+        elif prev["fix_status"] == 3 and cur["fix_status"] < 3:
+            reason = f"fix downgraded {prev['fix_status']} -> {cur['fix_status']}"
+        # 3. Position jump while staying 3D-fixed.
+        elif prev["fix_status"] == 3 and cur["fix_status"] == 3:
+            dist = self._haversine_m(prev["lat_deg"], prev["lon_deg"],
+                                     cur["lat_deg"],  cur["lon_deg"])
+            dt = max(cur["ts"] - prev["ts"], 0.05)
+            if dist > 50.0 and dt < 2.0:
+                reason = f"position jump {dist:.0f} m in {dt:.2f} s"
+            elif abs(cur["alt_msl_m"] - prev["alt_msl_m"]) > 30.0 and dt < 2.0:
+                reason = f"altitude jump {prev['alt_msl_m']:.1f} -> {cur['alt_msl_m']:.1f} m"
+        if reason is not None:
+            with self._lock:
+                self.gps_glitch[nid] = {"reason": reason, "ts": cur["ts"]}
+            self.log_cb(f"node {nid}: GPS GLITCH — {reason}")
+
+    def clear_glitch(self, nid):
+        """Re-arm detection for the given node."""
+        with self._lock:
+            self.gps_glitch.pop(nid, None)
+            # Drop the prev sample so the next Fix2 establishes a fresh baseline
+            # rather than tripping again on the same delta the user just saw.
+            self._prev_fix2.pop(nid, None)
+        self.log_cb(f"node {nid}: glitch state cleared, re-armed")
+
+    @staticmethod
+    def _haversine_m(lat1, lon1, lat2, lon2):
+        from math import radians, sin, cos, asin, sqrt
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+        return 2 * 6371000.0 * asin(sqrt(a))
 
     def _on_aux(self, event):
         nid = event.transfer.source_node_id

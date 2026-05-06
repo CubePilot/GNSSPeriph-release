@@ -21,7 +21,8 @@ class TunnelSession:
     """
 
     def __init__(self, worker, target_node, serial_id, baudrate, lock_port,
-                 listen_host, listen_port, log_cb, status_cb):
+                 listen_host, listen_port, log_cb, status_cb,
+                 record_path=None):
         self.worker = worker
         self.target_node = target_node
         self.serial_id = serial_id
@@ -31,6 +32,10 @@ class TunnelSession:
         self.listen_port = listen_port
         self.log_cb = log_cb
         self.status_cb = status_cb
+        self.record_path = record_path
+        self._record_file = None
+        self._record_lock = threading.Lock()
+        self.bytes_recorded = 0
         self._stop = threading.Event()
         self._sock = None
         self._client = None
@@ -42,6 +47,13 @@ class TunnelSession:
         self._thread = threading.Thread(target=self._run, name="tunnel_io", daemon=True)
 
     def start(self):
+        if self.record_path:
+            try:
+                self._record_file = open(self.record_path, "ab")
+                self.log_cb(f"tunnel: recording u-blox stream -> {self.record_path}")
+            except OSError as ex:
+                self._record_file = None
+                self.log_cb(f"tunnel: cannot open record file {self.record_path!r}: {ex}")
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._sock.bind((self.listen_host, self.listen_port))
@@ -72,6 +84,14 @@ class TunnelSession:
             pass
         self._sock = None
         self._thread.join(timeout=1.0)
+        with self._record_lock:
+            if self._record_file is not None:
+                try:
+                    self._record_file.flush()
+                    self._record_file.close()
+                except OSError:
+                    pass
+                self._record_file = None
         self.log_cb("tunnel: stopped")
         self.status_cb("stopped")
 
@@ -79,6 +99,18 @@ class TunnelSession:
         """Called from the CanWorker thread when a Targetted broadcast arrives."""
         if data:
             self.bytes_rx += len(data)
+            with self._record_lock:
+                if self._record_file is not None:
+                    try:
+                        self._record_file.write(data)
+                        self.bytes_recorded += len(data)
+                    except OSError as ex:
+                        self.log_cb(f"tunnel: record write failed, stopping recording: {ex}")
+                        try:
+                            self._record_file.close()
+                        except OSError:
+                            pass
+                        self._record_file = None
             try:
                 self._rx_q.put_nowait(data)
             except queue.Full:
