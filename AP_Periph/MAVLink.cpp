@@ -17,6 +17,7 @@
 #include "MAVLink.h"
 #include "AP_Periph.h"
 #include <AP_Filesystem/AP_Filesystem.h>
+#include <AP_HAL/utility/sparse-endian.h>
 #include <dronecan_msgs.h>
 #include <AP_Common/AP_FWVersion.h>
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
@@ -125,7 +126,8 @@ void MAVLink_Periph::handle_cubepilot_firmware_update_resp(const mavlink_message
     mavlink_msg_cubepilot_firmware_update_resp_decode(&msg, &packet);
     if (packet.offset > cubeid_fw_size) {
         // update finished
-        can_printf("CubeID Firmware update finished.");
+        can_printf("CubeID running fw v%u.%u.%u",
+                   cubeid_fw_ver_major, cubeid_fw_ver_minor, cubeid_fw_ver_rev);
         cubeid_fw_updated = true;
         return;
     }
@@ -180,6 +182,16 @@ void MAVLink_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
                 return;
             }
 
+            // read bundled firmware version from the MCUboot image header
+            // (version starts at byte 20: major u8, minor u8, revision u16le)
+            if (AP::FS().read(cubeid_fw_fd, cubeid_fw_readbuf, 24) == 24 &&
+                le32toh_ptr(&cubeid_fw_readbuf[0]) == 0x96f3b83dUL) {
+                cubeid_fw_ver_major = cubeid_fw_readbuf[20];
+                cubeid_fw_ver_minor = cubeid_fw_readbuf[21];
+                cubeid_fw_ver_rev = le16toh_ptr(&cubeid_fw_readbuf[22]);
+            }
+            AP::FS().lseek(cubeid_fw_fd, 0, SEEK_SET);
+
             // calculate CRC32 of firmware
             while (true) {
                 int n = AP::FS().read(cubeid_fw_fd, cubeid_fw_readbuf, sizeof(cubeid_fw_readbuf));
@@ -191,7 +203,9 @@ void MAVLink_Periph::handle_odid_heartbeat(const mavlink_message_t &msg)
             // seek to start of file
             AP::FS().lseek(cubeid_fw_fd, 0, SEEK_SET);
             cubeid_fw_size = AP::FS().lseek(cubeid_fw_fd, 0, SEEK_END);
-            can_printf("CubeID firmware size %lu crc 0x%08lx", cubeid_fw_size, cubeid_fw_crc);
+            can_printf("CubeID fw v%u.%u.%u size %lu crc 0x%08lx",
+                       cubeid_fw_ver_major, cubeid_fw_ver_minor, cubeid_fw_ver_rev,
+                       cubeid_fw_size, cubeid_fw_crc);
         }
         // send firmware update start command
         mavlink_msg_cubepilot_firmware_update_start_send(chan, msg.sysid, msg.compid, cubeid_fw_size, cubeid_fw_crc);

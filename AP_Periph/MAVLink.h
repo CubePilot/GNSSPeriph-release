@@ -49,6 +49,10 @@ private:
 
     uint32_t cubeid_fw_size;
     uint32_t cubeid_fw_crc;
+    // bundled CubeID firmware version from the MCUboot image header
+    uint8_t cubeid_fw_ver_major;
+    uint8_t cubeid_fw_ver_minor;
+    uint16_t cubeid_fw_ver_rev;
     int cubeid_fw_fd = -1;
     uint8_t cubeid_fw_readbuf[252];
     bool cubeid_fw_updated;
