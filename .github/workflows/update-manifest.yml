@@ -5,7 +5,9 @@ on:
   workflow_run:
     workflows: ["Build GNSSPeriph"]
     types: [completed]
-    branches: [release]
+    # no branches filter: release-event runs carry the tag as head branch,
+    # so a "release" filter would never match; the job-level if handles
+    # restricting to successful release builds
 
 jobs:
   update-manifest:
