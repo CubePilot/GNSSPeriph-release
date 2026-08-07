@@ -10,7 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ardupilot/ardupilot-dev-chibios:latest
+    # pinned: latest (v0.2.0, 2026-06-25) moved to python 3.12 which removed
+    # the imp module that the vendored waf still imports
+    container: ardupilot/ardupilot-dev-chibios:v0.1.5
     env:
       HERE3_CUBEID_TAG: v1.12
       HERE4_CUBEID_TAG: v1.12
