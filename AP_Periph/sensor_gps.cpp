@@ -175,6 +175,23 @@ void AP_Periph_DroneCAN::can_gps_update(void)
             float vc3 = sq(sacc);
             pkt.covariance.data[3] = pkt.covariance.data[4] = pkt.covariance.data[5] = vc3;
         }
+        
+#if defined(HAL_PERIPH_ENABLE_GPS) && GPS_MOVING_BASELINE
+    // PX4 relies on the ecef_position_velocity field for heading, heading offset and heading accuracy,
+    // since there is no support for RelPosHeading as of 1.14 stable
+    float yaw;
+    float yaw_accuracy;
+    uint32_t curr_timestamp;
+    static float last_timestamp = 0;
+
+    if (gps.gps_yaw_deg(yaw, yaw_accuracy, curr_timestamp) && curr_timestamp != last_timestamp){
+        pkt.ecef_position_velocity.len = 1;
+        pkt.ecef_position_velocity.data[0].velocity_xyz[0] = wrap_PI(yaw * DEG_TO_RAD);
+        pkt.ecef_position_velocity.data[0].velocity_xyz[1] = 0; // Offset already compensated for.
+        pkt.ecef_position_velocity.data[0].velocity_xyz[2] = yaw_accuracy * DEG_TO_RAD;
+    }
+    last_timestamp = curr_timestamp;
+#endif
 
         fix2_pub.broadcast(pkt);
     }
