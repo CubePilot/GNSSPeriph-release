@@ -51,11 +51,60 @@ void AP_Periph_DroneCAN::handle_notify_state(const CanardRxTransfer& transfer, c
 }
 #endif
 
+#if AP_PERIPH_LOGGER
+/*
+  logger status LED (replaces the rainbow):
+    green blink 1 Hz  logging, 3D fix
+    blue blink 1 Hz   logging, no fix
+    solid red         not logging: no eMMC, write error, X20 config failed, or dropped log data in the last 10 s
+    solid purple      USB connected (retrieval mode, not logging)
+ */
+void AP_Periph_FW::update_logger_led()
+{
+    const uint32_t now_ms = AP_HAL::millis();
+    static uint32_t last_update_ms;
+    if (now_ms - last_update_ms < 100) {
+        return;
+    }
+    last_update_ms = now_ms;
+
+    static uint32_t last_dropped, last_drop_ms;
+    const uint32_t dropped = logger.num_dropped();
+    if (dropped != last_dropped) {
+        last_dropped = dropped;
+        last_drop_ms = now_ms;
+    }
+    const bool recent_drops = last_drop_ms != 0 && now_ms - last_drop_ms < 10000;
+    // allow the X20 30 s to be detected and configured before calling it failed
+    const bool x20_failed = !x20_config_ok() && now_ms > 30000;
+
+    uint8_t red = 0, green = 0, blue = 0;
+    if (hal.gpio->usb_connected()) {
+        red = 128; blue = 128;
+    } else if (!logger.CardInserted() || logger.logging_failed() || !logger.logging_started() || recent_drops || x20_failed) {
+        red = 255;
+    } else if ((now_ms / 500) % 2 == 0) {
+        if (gps.status() >= AP_GPS::GPS_OK_FIX_3D) {
+            green = 255;
+        } else {
+            blue = 255;
+        }
+    }
+    const int8_t brightness = hal.gpio->usb_connected() ? LED_CONNECTED_BRIGHTNESS : notify.get_rgb_led_brightness_percent();
+    const float scale = constrain_float(brightness, 0, 100) * 0.01f;
+    set_rgb_led(red * scale, green * scale, blue * scale);
+}
+#endif
+
 /*
   rotating rainbow pattern on startup
  */
 void AP_Periph_FW::update_rainbow()
 {
+#if AP_PERIPH_LOGGER
+    update_logger_led();
+    return;
+#endif
 #ifdef ENABLE_BASE_MODE
     if (gps_base.enabled()) {
         return;

@@ -224,6 +224,8 @@ public:
     void pps_edge_isr(uint8_t pin, bool high, uint32_t timestamp_us);
     void timesync_on_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len, uint64_t arrival_us);
     uint64_t timesync_predict_mcu_us(uint16_t week, double tow_s) const;
+
+    void update_logger_led();
 #endif
 
     // setup the var_info table
