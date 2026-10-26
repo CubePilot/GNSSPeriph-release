@@ -7,5 +7,10 @@ define AP_INERTIALSENSOR_ENABLED 1
 define AP_PERIPH_LOGGER 1
 define HAL_LOGGING_FILE_BUFSIZE 400
 
+# raw capture hooks in AP_GPS / AP_Compass; all-band RAWX epochs exceed 80 measurements
+define AP_GPS_UBLOX_FRAME_CB_ENABLED 1
+define AP_COMPASS_RAW_SAMPLE_CB_ENABLED 1
+define UBLOX_MAX_RXM_RAWX_SATS 255
+
 # shares the HerePro bootloader (same APJ_BOARD_ID); no embedded bootloader image
 define AP_BOOTLOADER_FLASHING_ENABLED 0

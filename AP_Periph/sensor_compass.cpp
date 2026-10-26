@@ -4,6 +4,18 @@
 #define SENSOR_ID_OFFSET 0
 #endif 
 
+#if AP_PERIPH_LOGGER
+/*
+  MAGF: every sample in board frame, before any calibration correction, mGauss
+ */
+void AP_Periph_FW::log_mag_raw(uint8_t instance, const Vector3f &field_board_frame_mgauss)
+{
+    AP::logger().WriteStreaming("MAGF", "TimeUS,I,MagX,MagY,MagZ", "s#GGG", "F-CCC", "QBfff",
+                                AP_HAL::micros64(), instance,
+                                field_board_frame_mgauss.x, field_board_frame_mgauss.y, field_board_frame_mgauss.z);
+}
+#endif
+
 /*
   update CAN magnetometer
  */

@@ -175,6 +175,8 @@ public:
         IMU_RAW = 1U<<4,
     };
     void write_logger_startup_messages();
+    void log_ubx_frame(uint8_t instance, uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);
+    void log_mag_raw(uint8_t instance, const Vector3f &field_board_frame_mgauss);
 #endif
 
     // setup the var_info table

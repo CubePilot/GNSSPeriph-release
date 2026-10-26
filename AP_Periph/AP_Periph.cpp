@@ -191,6 +191,10 @@ void AP_Periph_FW::init()
         gps_base.prepare_ubx_base_cfg();
 #endif
         gps.init();
+#if AP_PERIPH_LOGGER
+        gps.set_ubx_frame_cb(FUNCTOR_BIND_MEMBER(&AP_Periph_FW::log_ubx_frame, void, uint8_t, uint8_t, uint8_t, const uint8_t*, uint16_t));
+        compass.set_raw_sample_cb(FUNCTOR_BIND_MEMBER(&AP_Periph_FW::log_mag_raw, void, uint8_t, const Vector3f &));
+#endif
     } else {
 #ifdef GPIO_USART1_RX
         // setup gpio passthrough

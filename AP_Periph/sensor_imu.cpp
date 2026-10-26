@@ -1,5 +1,27 @@
 #include "AP_Periph.h"
 
+#if AP_PERIPH_LOGGER
+/*
+  log one IMU loop sample as delta angle / delta velocity (IMUD)
+ */
+static void log_imu_delta(AP_InertialSensor &imu)
+{
+    Vector3f delta_angle, delta_velocity;
+    float delta_angle_dt = 0, delta_velocity_dt = 0;
+    imu.get_delta_angle(delta_angle, delta_angle_dt);
+    imu.get_delta_velocity(delta_velocity, delta_velocity_dt);
+    AP::logger().WriteStreaming("IMUD",
+                                "TimeUS,DelAngX,DelAngY,DelAngZ,DelAngDT,DelVelX,DelVelY,DelVelZ,DelVelDT,Temp",
+                                "srrrsnnnsO",
+                                "F000000000",
+                                "Qfffffffff",
+                                AP_HAL::micros64(),
+                                delta_angle.x, delta_angle.y, delta_angle.z, delta_angle_dt,
+                                delta_velocity.x, delta_velocity.y, delta_velocity.z, delta_velocity_dt,
+                                imu.get_temperature(0));
+}
+#endif
+
 /*
   update CAN magnetometer
  */
@@ -13,6 +35,16 @@ void AP_Periph_DroneCAN::can_imu_update(void)
         if (!imu.healthy()) {
             continue;
         }
+
+#if AP_PERIPH_LOGGER
+        // logger build: log every new sample, never exit the thread, no CAN broadcast
+        if (imu.get_last_update_usec() == periph.last_imu_update_usec) {
+            continue;
+        }
+        periph.last_imu_update_usec = imu.get_last_update_usec();
+        log_imu_delta(imu);
+        continue;
+#endif
 
         uavcan_equipment_ahrs_RawIMU pkt {};
         if (imu.get_last_update_usec() == periph.last_imu_update_usec) {

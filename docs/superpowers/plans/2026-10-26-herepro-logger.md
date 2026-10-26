@@ -4,7 +4,7 @@
 
 **Goal:** A `HereProX-logger` firmware variant that records IMU, raw UBX, magnetometer and timing data from boot to eMMC as an ArduPilot `.bin`, plus the field tools to extract it.
 
-**Architecture:** A new board directory includes `HerePro/hwdef.dat` and turns on `HAL_LOGGING_ENABLED`, `AP_INERTIALSENSOR_ENABLED` and `AP_PERIPH_LOGGER`. All new AP_Periph code sits under `#if AP_PERIPH_LOGGER`. All ardupilot-submodule changes sit under `#if AP_GPS_UBLOX_RAW_FRAME_CB` / `#if AP_COMPASS_RAW_SAMPLE_CB` (both default 0), so release HerePro builds are byte-for-byte unaffected. New log messages use the dynamic `AP::logger().Write*()` API (no message-ID allocation).
+**Architecture:** A new board directory includes `HerePro/hwdef.dat` and turns on `HAL_LOGGING_ENABLED`, `AP_INERTIALSENSOR_ENABLED` and `AP_PERIPH_LOGGER`. All new AP_Periph code sits under `#if AP_PERIPH_LOGGER`. All ardupilot-submodule changes sit under `#if AP_GPS_UBLOX_FRAME_CB_ENABLED` / `#if AP_COMPASS_RAW_SAMPLE_CB_ENABLED` (both default 0), so release HerePro builds differ only in version data (git hash, descriptor CRC). The compass hook sits on an existing line so `WITH_SEMAPHORE` `__LINE__` values don't move. With the frame callback enabled, the legacy RAWX-only `_gps_raw_cb` copy is compiled out (its stack buffer scales with `UBLOX_MAX_RXM_RAWX_SATS`), so rover mode's raw file can't be used in the logger build. New log messages use the dynamic `AP::logger().Write*()` API (no message-ID allocation).
 
 **Tech Stack:** ArduPilot AP_Periph (C++, ChibiOS, waf), u-blox UBX over CFG-VALSET, Python 3 + pymavlink for field tools.
 
@@ -98,7 +98,7 @@ Goal of this phase: the same image now also records 1 kHz `ACC/GYR`, 400 Hz `IMU
 - Modify: `AP_Periph/sensor_compass.cpp` or `AP_Periph/AP_Periph.cpp` (register callback)
 
 **Interfaces:**
-- Produces in `Compass` (under `#if AP_COMPASS_RAW_SAMPLE_CB`, default 0, set to 1 in the logger hwdef):
+- Produces in `Compass` (under `#if AP_COMPASS_RAW_SAMPLE_CB_ENABLED`, default 0, set to 1 in the logger hwdef):
   - `FUNCTOR_TYPEDEF(raw_sample_cb_t, void, uint8_t instance, const Vector3f &field_board_frame_mgauss);`
   - `void set_raw_sample_cb(raw_sample_cb_t cb);`
   - Called in `accumulate_sample` after `rotate_field()` and before `correct_field()`.
@@ -114,14 +114,14 @@ Goal of this phase: the same image now also records 1 kHz `ACC/GYR`, 400 Hz `IMU
 **Files:**
 - Modify (submodule): `ardupilot/libraries/AP_GPS/AP_GPS_UBLOX.h:63` (`#ifndef UBLOX_MAX_RXM_RAWX_SATS`), `AP_GPS_UBLOX.cpp:841` (frame hook), `AP_GPS_UBLOX.cpp:1050-1061` (gate auto-disable on `GPS_AUTO_CONFIG`), `AP_GPS.h` (frame callback member + setter)
 - Create: `AP_Periph/logger_ubx.cpp` (UBXR writer)
-- Modify: `AP_Periph/AP_Periph.h`, `AP_Periph/wscript` (if the source glob needs it), `HereProX-logger/hwdef.dat` (`define UBLOX_MAX_RXM_RAWX_SATS 255`, `define AP_GPS_UBLOX_RAW_FRAME_CB 1`)
+- Modify: `AP_Periph/AP_Periph.h`, `AP_Periph/wscript` (if the source glob needs it), `HereProX-logger/hwdef.dat` (`define UBLOX_MAX_RXM_RAWX_SATS 255`, `define AP_GPS_UBLOX_FRAME_CB_ENABLED 1`)
 
 **Interfaces:**
-- Produces in `AP_GPS` (under `#if AP_GPS_UBLOX_RAW_FRAME_CB`):
-  - `FUNCTOR_TYPEDEF(ubx_frame_cb_t, void, uint8_t instance, const uint8_t *frame, uint16_t frame_len);` where `frame` is the complete frame from 0xB5 0x62 through the checksum,
+- Produces in `AP_GPS` (under `#if AP_GPS_UBLOX_FRAME_CB_ENABLED`):
+  - `FUNCTOR_TYPEDEF(ubx_frame_cb_t, void, uint8_t instance, uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);` (payload only; no 8 KB stack copy),
   - `void set_ubx_frame_cb(ubx_frame_cb_t cb);`
 - The driver rebuilds the frame from `_class`, `_msg_id`, `_payload_length`, `_buffer`, `_ck_a` and `_ck_b` at `AP_GPS_UBLOX.cpp:841`, before `_parse_gps()`.
-- Produces in AP_Periph: `void AP_Periph_FW::log_ubx_frame(uint8_t instance, const uint8_t *frame, uint16_t frame_len);`
+- Produces in AP_Periph: `void AP_Periph_FW::log_ubx_frame(uint8_t instance, uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);` (re-frames and streams into UBXR records)
   - Writes `UBXR`: labels `TimeUS,Seq,Len,Data0,Data1`, format `QHBaa`.
   - `Len` = valid bytes in this record (1..128).
   - `Seq` = a uint16 counter shared by all records, wrapping.
@@ -179,7 +179,7 @@ Goal of this phase: the logger puts the X20 into the spec's message set at 92160
 - Writes `MSG "X20 cfg ok N/N keys"` or `MSG "X20 cfg FAILED step=<name>"`.
 - Exposes `bool x20_config_ok() const;` for the status LED.
 - `uint16_t ubx_build(uint8_t cls, uint8_t id, const uint8_t *payload, uint16_t len, uint8_t *out, uint16_t out_size);` builds a framed message and returns its length (0 if it doesn't fit).
-- `void x20_on_frame(const uint8_t *frame, uint16_t len);` is called from `log_ubx_frame` and handles ACK/NAK.
+- `void x20_on_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);` is called from `log_ubx_frame` and handles ACK/NAK.
 - The key table is one `static const` array of `{uint32_t key; uint32_t value;}`. The value width comes from key bits 28-30 (size code 1→1 byte (L), 2→1, 3→2, 4→4).
 - MON-VER and MON-GNSS are also re-polled at every log file open. Hook: the vehicle startup writer.
 
