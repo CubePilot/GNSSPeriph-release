@@ -177,6 +177,29 @@ public:
     void write_logger_startup_messages();
     void log_ubx_frame(uint8_t instance, uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);
     void log_mag_raw(uint8_t instance, const Vector3f &field_board_frame_mgauss);
+
+    // X20 configuration (logger_x20.cpp)
+    enum class X20State : uint8_t {
+        SEND_VALSET,
+        READBACK,
+        WAIT_READBACK,
+        DONE,
+    };
+    struct {
+        X20State state;
+        uint32_t step_ms;
+        uint8_t matched_keys;
+        bool readback_done;
+        bool info_requested;
+        bool ok;
+    } x20;
+    void x20_config_update();
+    void x20_on_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);
+    bool x20_config_ok() const { return x20.ok; }
+    static uint16_t ubx_build(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len, uint8_t *out, uint16_t out_size);
+    bool x20_send(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);
+    bool x20_send_valset();
+    bool x20_send_valget(bool readback_only_keys);
 #endif
 
     // setup the var_info table

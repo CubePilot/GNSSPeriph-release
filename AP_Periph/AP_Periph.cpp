@@ -67,6 +67,8 @@ const struct LogStructure AP_Periph_FW::log_structure[] = {
 void AP_Periph_FW::write_logger_startup_messages()
 {
     logger.Write_MessageF("HereProX-logger serial=%ld", (long)g.serial_number.get());
+    // re-poll X20 config/version so every log file carries them
+    x20.info_requested = true;
 }
 #endif
 
@@ -342,6 +344,7 @@ void AP_Periph_FW::update()
 
 #if AP_PERIPH_LOGGER
     logger.periodic_tasks();
+    x20_config_update();
 #endif
 
 #ifdef I2C_SLAVE_ENABLED

@@ -51,6 +51,7 @@ static UBXRecordWriter ubxr_writer;
 void AP_Periph_FW::log_ubx_frame(uint8_t instance, uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len)
 {
     (void)instance;
+    x20_on_frame(msg_class, msg_id, payload, payload_len);
     if (!logger.logging_started()) {
         return;
     }
