@@ -196,6 +196,7 @@ void AP_Periph_FW::init()
 #if AP_PERIPH_LOGGER
         gps.set_ubx_frame_cb(FUNCTOR_BIND_MEMBER(&AP_Periph_FW::log_ubx_frame, void, uint8_t, uint8_t, uint8_t, const uint8_t*, uint16_t));
         compass.set_raw_sample_cb(FUNCTOR_BIND_MEMBER(&AP_Periph_FW::log_mag_raw, void, uint8_t, const Vector3f &));
+        timesync_init();
 #endif
     } else {
 #ifdef GPIO_USART1_RX
@@ -345,6 +346,7 @@ void AP_Periph_FW::update()
 #if AP_PERIPH_LOGGER
     logger.periodic_tasks();
     x20_config_update();
+    timesync_update();
 #endif
 
 #ifdef I2C_SLAVE_ENABLED

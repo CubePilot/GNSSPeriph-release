@@ -12,5 +12,11 @@ define AP_GPS_UBLOX_FRAME_CB_ENABLED 1
 define AP_COMPASS_RAW_SAMPLE_CB_ENABLED 1
 define UBLOX_MAX_RXM_RAWX_SATS 255
 
+# receiver timepulse on PG2 (F97, GPIO 100): assumed, confirm on bench.
+# the logger owns the PPS interrupt; keep the driver's CFG-TP5 path off
+define HAL_GPIO_PPS 100
+undef CONFIGURE_PPS_PIN
+define CONFIGURE_PPS_PIN 0
+
 # shares the HerePro bootloader (same APJ_BOARD_ID); no embedded bootloader image
 define AP_BOOTLOADER_FLASHING_ENABLED 0

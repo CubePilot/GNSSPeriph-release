@@ -200,6 +200,30 @@ public:
     bool x20_send(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len);
     bool x20_send_valset();
     bool x20_send_valget(bool readback_only_keys);
+
+    // MCU <-> GPS time alignment (logger_timesync.cpp)
+    struct {
+        uint32_t last_strobe_ms;
+        uint64_t last_edge_us;
+        uint32_t strobe_count;
+        bool strobe_high;
+        bool last_edge_paired;
+        volatile uint32_t pps_edge_us32;
+        volatile uint32_t pps_count;
+        uint32_t pps_count_logged;
+        struct {
+            uint64_t mcu_us;
+            uint16_t week;
+            double tow_s;
+        } pairs[10];
+        uint8_t pair_next;
+        uint8_t pair_count;
+    } timesync;
+    void timesync_init();
+    void timesync_update();
+    void pps_edge_isr(uint8_t pin, bool high, uint32_t timestamp_us);
+    void timesync_on_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len, uint64_t arrival_us);
+    uint64_t timesync_predict_mcu_us(uint16_t week, double tow_s) const;
 #endif
 
     // setup the var_info table

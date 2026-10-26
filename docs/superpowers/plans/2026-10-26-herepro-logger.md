@@ -210,7 +210,7 @@ Goal of this phase: the logger puts the X20 into the spec's message set at 92160
 - `void AP_Periph_FW::log_epoch_link(const uint8_t *rawx_frame, uint16_t len, uint64_t arrival_us);` writes `GEPO` (labels `TimeUS,RcvTow,Week,LeapS,NumMeas,StrobeFit`, format `QdHbBQ`).
   - `StrobeFit` = predicted MCU µs for `RcvTow` from a running linear fit over the last 10 EXTS↔TIM-TM2 pairs. TIM-TM2 is paired with an EXTS record by TM2 `count`; the firmware keeps `Count` equal to the strobe rising-edge number since boot, and the pair is aligned on the first TM2 seen.
   - `StrobeFit` = 0 until 2 pairs exist.
-- `timesync_fit.py`: `fit_mcu_to_gpst(exts: list[tuple[int,int]], tm2: list[tuple[int,int,int,int]]) -> tuple[float,float,float]`. Arguments: `exts` = (time_us, count) pairs, `tm2` = (count, week, tow_ms, tow_sub_ns) tuples. Returns (offset_s, drift_ppm, rms_us).
+- `timesync_fit.py`: `fit_mcu_to_gpst(exts, tm2) -> (offset_s, drift_ppm, rms_us, pairs)`. Arguments: `exts` = (time_us, count), `tm2` = (arrival_time_us, count, week, tow_ms, tow_sub_ns). Each TIM-TM2 is paired with the latest EXTS edge before its arrival (within 0.9 s), because the receiver's edge counter and the MCU counter start at different times. `offset_s` is at the mid-point, in GPS seconds from the start of the first mark's week (absolute GPS seconds would lose double precision at ~0.2 µs).
 
 - [ ] **Step 1: Write the failing tests** in `test_timesync_fit.py`:
   - `test_fit_recovers_offset_and_drift`: synthetic offset 1234.5 s, drift 12 ppm, 1 µs noise → recovered within 0.1 µs offset at the mid-point and 0.05 ppm.

@@ -49,6 +49,16 @@ class UBXRTest(unittest.TestCase):
         self.assertEqual(out, [frames[0], frames[2], frames[3]])
         self.assertEqual(gaps, 1)
 
+    def test_frame_times(self):
+        frames = synthetic_frames()
+        records = [(1000 * i, seq, n, d) for i, (_t, seq, n, d) in enumerate(records_for(frames))]
+        out, _gaps = ubxr_records_to_frames(records, with_times=True)
+        first_record_of_frame = [0]
+        for fr in frames[:-1]:
+            first_record_of_frame.append(first_record_of_frame[-1] + len(split_frame(fr, 0)))
+        self.assertEqual([t for t, _f in out], [1000 * i for i in first_record_of_frame])
+        self.assertEqual([f for _t, f in out], frames)
+
     def test_seq_wrap(self):
         frames = synthetic_frames()
         out, gaps = ubxr_records_to_frames(records_for(frames, seq0=65530))

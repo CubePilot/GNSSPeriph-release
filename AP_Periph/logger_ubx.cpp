@@ -51,7 +51,9 @@ static UBXRecordWriter ubxr_writer;
 void AP_Periph_FW::log_ubx_frame(uint8_t instance, uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len)
 {
     (void)instance;
+    const uint64_t arrival_us = AP_HAL::micros64();
     x20_on_frame(msg_class, msg_id, payload, payload_len);
+    timesync_on_frame(msg_class, msg_id, payload, payload_len, arrival_us);
     if (!logger.logging_started()) {
         return;
     }
@@ -64,7 +66,7 @@ void AP_Periph_FW::log_ubx_frame(uint8_t instance, uint8_t msg_class, uint8_t ms
         ck_b += (ck_a += payload[i]);
     }
 
-    ubxr_writer.time_us = AP_HAL::micros64();
+    ubxr_writer.time_us = arrival_us;
     ubxr_writer.push(header, sizeof(header));
     ubxr_writer.push(payload, payload_len);
     ubxr_writer.push(ck_a);

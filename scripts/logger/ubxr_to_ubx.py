@@ -42,14 +42,18 @@ def split_frame(frame, seq0):
     return records
 
 
-def ubxr_records_to_frames(records):
-    """records: iterable of (time_us, seq, length, data128) -> (frames, seq_gaps)"""
+def ubxr_records_to_frames(records, with_times=False):
+    """
+    records: iterable of (time_us, seq, length, data128) -> (frames, seq_gaps)
+    with_times: frames become (time_us, frame), time_us = arrival time logged with the frame
+    """
     frames = []
+    frame_time_us = 0
     gaps = 0
     buf = bytearray()
     expected_seq = None
     resync = False
-    for _time_us, seq, length, data in records:
+    for time_us, seq, length, data in records:
         if expected_seq is not None and seq != expected_seq:
             gaps += 1
             buf.clear()
@@ -60,6 +64,8 @@ def ubxr_records_to_frames(records):
             if not chunk.startswith(SYNC):
                 continue
             resync = False
+        if not buf:
+            frame_time_us = time_us
         buf += chunk
         while len(buf) >= 8:
             if not buf.startswith(SYNC):
@@ -73,7 +79,7 @@ def ubxr_records_to_frames(records):
             frame = bytes(buf[:frame_len])
             del buf[:frame_len]
             if frame[-2:] == ubx_checksum(frame[2:-2]):
-                frames.append(frame)
+                frames.append((frame_time_us, frame) if with_times else frame)
             else:
                 buf.clear()
                 resync = True
