@@ -226,6 +226,19 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @User: Standard
     GSCALAR(can2_force_en, "CAN2_FORCE_EN", 0),
 #endif
+
+#if AP_PERIPH_LOGGER
+    // @Group: LOG
+    // @Path: ../ardupilot/libraries/AP_Logger/AP_Logger.cpp
+    GOBJECT(logger, "LOG", AP_Logger),
+
+    // @Param: LOG_BITMASK
+    // @DisplayName: Log bitmask
+    // @Description: Bitmap of log types to enable
+    // @Bitmask: 2:GPS,3:Compass,4:IMU raw
+    // @User: Standard
+    GSCALAR(log_bitmask, "LOG_BITMASK", 28),
+#endif
     AP_VAREND
 };
 

@@ -1,6 +1,11 @@
 #pragma once
 
 #include <AP_HAL/AP_HAL.h>
+
+// logger-only code (HereProX-logger variant)
+#ifndef AP_PERIPH_LOGGER
+#define AP_PERIPH_LOGGER 0
+#endif
 #include <AP_Param/AP_Param.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_Compass/AP_Compass.h>
@@ -159,6 +164,17 @@ public:
 #if AP_INERTIALSENSOR_ENABLED
     AP_InertialSensor imu;
     uint32_t last_imu_update_usec;
+#endif
+
+#if AP_PERIPH_LOGGER
+    static const struct LogStructure log_structure[];
+    AP_Logger logger;
+    enum class LogBit : uint32_t {
+        GPS     = 1U<<2,
+        COMPASS = 1U<<3,
+        IMU_RAW = 1U<<4,
+    };
+    void write_logger_startup_messages();
 #endif
 
     // setup the var_info table

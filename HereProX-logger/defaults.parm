@@ -1,0 +1,25 @@
+@include ../HerePro/defaults.parm
+
+# logging from boot; USB VBUS at boot = retrieval mode (no log)
+LOG_BACKEND_TYPE 1
+LOG_DISARMED 2
+LOG_FILE_BUFSIZE 400
+LOG_FILE_DSRMROT 0
+# GPS(4) | COMPASS(8) | IMU_RAW(16)
+LOG_BITMASK 28
+
+# standalone operation: static node id bypasses the DNA gate
+CAN_NODE 125
+
+# X20 configured by the logger, driver only parses
+GPS_AUTO_CONFIG 0
+GPS_RAW_DATA 0
+ROVER_ENABLE 0
+
+# IMU: 400 Hz loop, 1 kHz raw, no boot gyro cal
+IMU_SAMPLE_RATE 400
+INS_GYRO_RATE 0
+INS_GYR_CAL 0
+INS_RAW_LOG_OPT 0
+
+SCR_ENABLE 0

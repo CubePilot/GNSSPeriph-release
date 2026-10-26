@@ -58,6 +58,18 @@ void loop(void)
 
 static uint32_t start_ms;
 
+#if AP_PERIPH_LOGGER
+const struct LogStructure AP_Periph_FW::log_structure[] = {
+    LOG_COMMON_STRUCTURES,
+};
+
+// extra lines written at the start of every log file
+void AP_Periph_FW::write_logger_startup_messages()
+{
+    logger.Write_MessageF("HereProX-logger serial=%ld", (long)g.serial_number.get());
+}
+#endif
+
 AP_Periph_FW::AP_Periph_FW()
 {
     if (_singleton != nullptr) {
@@ -111,6 +123,11 @@ void AP_Periph_FW::init()
 
     load_parameters();
 
+#if AP_PERIPH_LOGGER
+    logger.setVehicle_Startup_Writer(FUNCTOR_BIND_MEMBER(&AP_Periph_FW::write_logger_startup_messages, void));
+    logger.init(g.log_bitmask, log_structure, ARRAY_SIZE(log_structure));
+#endif
+
     stm32_watchdog_pat();
 
     can_start();
@@ -137,6 +154,11 @@ void AP_Periph_FW::init()
     if (hal.util->was_watchdog_reset()) {
         printf("Reboot after watchdog reset\n");
     }
+
+#if AP_PERIPH_LOGGER
+    gps.set_log_gps_bit(uint32_t(LogBit::GPS));
+    imu.set_log_raw_bit(uint32_t(LogBit::IMU_RAW));
+#endif
 
 #if AP_INERTIALSENSOR_ENABLED
     if (g.imu_sample_rate) {
@@ -313,6 +335,10 @@ void AP_Periph_FW::update()
     }
 
     rcout_update();
+
+#if AP_PERIPH_LOGGER
+    logger.periodic_tasks();
+#endif
 
 #ifdef I2C_SLAVE_ENABLED
     if (_setup_ser_i2c_mode && AP_Periph_FW::no_iface_finished_dna) {

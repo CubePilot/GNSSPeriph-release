@@ -31,6 +31,12 @@ void AP_Periph_DroneCAN::can_mag_update(void)
             continue;
         }
         periph.last_mag_update_ms[i] = compass.last_update_ms(i);
+#if AP_PERIPH_LOGGER
+        // log once per new sample; Compass::read() would log on every call
+        if (i == 0 && AP::logger().should_log(uint32_t(AP_Periph_FW::LogBit::COMPASS))) {
+            AP::logger().Write_Compass();
+        }
+#endif
         const Vector3f &field = compass.get_field(i);
         pkt.sensor_id = SENSOR_ID_OFFSET + i;
         for (uint8_t j=0; j<3; j++) {

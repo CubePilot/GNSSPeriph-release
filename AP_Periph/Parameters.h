@@ -109,6 +109,9 @@ public:
     AP_Int8 gps_safeboot;
     AP_Int8 gps_type;
     AP_Int8 can2_force_en;
+#if AP_PERIPH_LOGGER
+    AP_Int32 log_bitmask;
+#endif
     Parameters() {}
 };
 
