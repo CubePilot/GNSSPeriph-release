@@ -197,7 +197,7 @@ The fallback is the driver's UART-arrival jitter correction (`GPS_Backend.cpp:29
   - **Corrections:** none. The record is taken before `correct_field()` (`:149`), so offsets, scale factor, diagonals/off-diagonals and motor compensation (`AP_Compass_Backend.cpp:76-136`) are all absent.
   - **Timing:** one record per 80 Hz sensor sample, with no accumulation.
   - **Why:** `int16` resolution in `MAG` (≈0.2° heading at 250 mG horizontal) is too coarse for a truth reference. The hook is a one-line callback in the submodule, gated by `AP_PERIPH_LOGGER`.
-- **The RM3100 is the primary heading truth** (user decision). The unit rides on a non-metal mast above the roof and is calibrated **in that mounted position**.
+- **The RM3100 is the primary heading truth** (user decision). The unit uses the existing suction-cup roof mount (user decision) and is calibrated **in that mounted position**. It sits closer to the roof steel than a mast would, so the in-car calibration circles and the |B|/inclination validity mask carry more weight, and replay's course-over-ground cross-check guards truth quality.
   - The hard/soft-iron fit is done **offline** from the calibration circles in the Field Procedure (2D fit, since a car can't tilt), then corrected for declination with WMM.
   - Start-of-drive and end-of-drive fits are compared as a stability check.
   - The periph `COMPASS_*` values in `PARM` record whatever was applied on board.
@@ -311,12 +311,13 @@ The test team fills in the `⟨…⟩` placeholders below from this checklist:
 **Before driving**
 1. **Power:** a 5 V USB power bank into the unit's USB port (`⟨connector / cable⟩`). The unit stays purple for 5 s, then starts logging. Never start a drive with a laptop attached: a laptop that enumerates puts the unit in download mode (purple, no log). Runtime ≈ `⟨h⟩`; eMMC fits about `⟨recording hours⟩`.
 2. **Mounting (the RM3100 is the heading reference):**
-   - Put the unit on a **non-metal mast** (PVC, wood or GRP) at least 30 cm above the roof, on the roof centreline, with clear sky. The mast base can be a suction cup or a roof-bar clamp. **No magnetic base, no steel hose clamps or screws near the unit.**
-   - Keep it at least 1 m from roof racks, other antennas and cabled devices.
-   - Point the unit's arrow toward the car's nose and keep it level. Photograph the mount from above and from the side, and write down any yaw offset (record "0°" if it is aligned).
-   - Don't move or re-tighten the mast after calibration. If it gets bumped, redo the calibration circles.
+   - Use the **existing suction-cup roof mount** from previous tests, on the roof centreline, with clear sky.
+   - **No magnetic base, and no added steel near the unit** (no steel brackets, clamps, screws, tools or phone mounts nearby). Keep it away from roof racks, other antennas and cabled devices where possible.
+   - Point the unit's arrow toward the car's nose and keep it level.
+   - Record: photos from above and from the side, any yaw offset (record "0°" if aligned), and the **height of the unit above the roof surface** → `⟨mm⟩`.
+   - If the mount is re-stuck, moved or bumped, **redo the calibration circles** before continuing.
 3. Power on while parked in open sky. Within about 60 s the LED goes from blue blinking to green blinking. If the LED is solid red, power-cycle once, then stop and report.
-4. **RM3100 calibration on the car:** done with the unit mounted on the mast, in an open car park away from parked cars, lamp posts and buried rebar if visible. Drive the calibration circles listed first in the drive plan. Calibration is fitted offline from the log, so nothing needs to be pressed or confirmed on the unit.
+4. **RM3100 calibration on the car:** done with the unit on the suction-cup mount, in an open car park away from parked cars, lamp posts and buried rebar if visible. Drive the calibration circles listed first in the drive plan. Calibration is fitted offline from the log, so nothing needs to be pressed or confirmed on the unit.
 
 **Drive plan (about 75 min)**
 
@@ -367,7 +368,8 @@ The replay harness owns everything beyond that (see `2026-10-26-replay-harness-d
 | eMMC write stalls → dropped data | 400 KB buffer, `DSF` monitoring, LED red on drops. |
 | Gyro calibrated while moving | `INS_GYR_CAL 0`. |
 | Strobe/TM2 pairing breaks (missed edge, counter wrap) | `count`-based pairing, the PPS/TIM-TP cross-check, then UART jitter correction (ms-level). |
-| Car body or mast hardware distorts the RM3100 | Non-metal mast ≥ 30 cm above the roof, no steel fasteners, calibration in the mounted position at start and end, compare the two fits. |
+| Car body or mount hardware distorts the RM3100 | No magnetic base or added steel near the unit; calibration in the mounted position at start and end; compare the two fits. |
+| The suction-cup mount puts the RM3100 closer to the roof steel than designed (stronger hard/soft iron, more attitude-dependent distortion) | The in-car calibration circles and the \|B\|/inclination validity mask carry more weight. Replay's course-over-ground cross-check (GNSS course at speed vs calibrated RM3100 heading) is the guard on truth quality. Record the mount height so its effect can be compared across drives. |
 | Magnetic base, or a laptop attached at power-up in the field | Field Procedure warnings; purple LED that never turns blue = download mode. |
 | Host slower than 5 s to enumerate, or a power bank with data lines that look like a host | Bench checks B1a/B1b; `MSG "USB power only…"` in every log records the decision. |
 | Product X20 support missing in AP_GPS (MON-VER, VALSET-only, CFG-TP) | Out of scope for the logger. Flag it to the tight-coupling and product workstreams. |
@@ -379,7 +381,7 @@ The replay harness owns everything beyond that (see `2026-10-26-replay-harness-d
 3. Logging starts at boot (`LOG_DISARMED 2`). USB host enumeration within 5 s = download mode; VBUS without a host = power bank, log. `CAN_NODE 125` gets past the DNA gate.
 4. IMU: raw `ACC/GYR` at 1 kHz (car campaign, user decision) plus new `IMUD` delta angles/velocities at 400 Hz. `INS_GYR_CAL 0`.
 5. Time sync: a 1 Hz EXTINT strobe with TIM-TM2 (`EXTS` message), plus a per-epoch `GEPO` iTOW↔TimeUS pair. A PPS edge log (`PPSE`) with TIM-TP is the cross-check (user decision).
-6. The RM3100 is the primary heading truth: mast-mounted and calibrated in place, fitted offline from logged calibration circles. New float `MAGF` message.
+6. The RM3100 is the primary heading truth: on the existing suction-cup roof mount and calibrated in place, fitted offline from logged calibration circles. New float `MAGF` message.
 7. RAWX/SFRBX at 5 Hz, X20 UART at 921600, automotive dynamic model for the car.
 8. FC motor current/throttle: not logged by the periph. Later flights use the FC `.bin`, aligned by GPS time.
 9. LED states as listed above.
