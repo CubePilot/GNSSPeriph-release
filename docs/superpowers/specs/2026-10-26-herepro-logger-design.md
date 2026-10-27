@@ -331,7 +331,7 @@ The test team fills in the `⟨…⟩` placeholders below from this checklist:
 | Clean open-sky road (ring road/highway) | 15 min | baseline |
 | Overpasses / short bridges, several in a row | 10 min | short outages |
 | Railway underpass, passed through 3-4 times | 5 min | short full blockages |
-| Multistorey car park: drive in, up and down at least 2-3 levels, one 1-2 min stop inside, drive out | 10 min | long full blockage with ramps, turns and a zero-velocity stop (the long-coast test); GNSS re-acquisition at the exit |
+| Westfield Geelong multistorey car park: drive in, up and down 2-3 levels, park inside 1-2 min, drive out | 10 min | long full blockage with ramps, turns and a zero-velocity stop (the long-coast test); GNSS re-acquisition at the exit |
 | Tree-canopy road | 10 min | partial sky |
 | Urban canyon (downtown grid) with many 90° turns, plus roundabouts and at least one loop | 15 min | multipath and partial sky; heading coverage for the RM3100 calibration and heading observability |
 | 5 static stops of 30-60 s, at least 2 under cover | spread through | zero-velocity reference |
