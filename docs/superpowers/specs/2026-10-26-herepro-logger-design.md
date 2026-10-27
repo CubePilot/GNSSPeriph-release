@@ -234,7 +234,7 @@ The all-band epoch estimate is about 130 measurements in open sky (GPS ~25, GAL 
 - **X20 UART1 load:** about 21 kB/s RAWX + 3 SFRBX + 4 others ≈ 28 kB/s, i.e. 61% of 460800 (46 kB/s at 10 bits per byte) and 30% of 921600.
   - All-band RAWX at 10 Hz is ≈ 42 kB/s by itself, about 90% of 460800.
   - **Choice: 5 Hz RAWX at 921600.** The IMU carries the high-rate dynamics. A 5 Hz pseudorange/carrier update is the normal rate for tight coupling and PPK. 10 Hz would double GNSS log volume and leave only about 40% UART headroom even at 921600.
-  - 921600 is chosen over staying at 460800, because 61% leaves no margin for SFRBX bursts after a reacquisition (tunnel exit).
+  - 921600 is chosen over staying at 460800, because 61% leaves no margin for SFRBX bursts after a reacquisition (e.g. leaving the multistorey car park).
   - Raise to 10 Hz only if replay shows 5 Hz limits the filter.
 - **eMMC throughput:** 122 kB/s is far below what SDMMC 8-bit can sustain. The real risk is write-latency stalls (FAT allocation, eMMC garbage collection). `LOG_FILE_BUFSIZE 400` covers about 3 s. The File backend shrinks the buffer if RAM is short and reports it (`AP_Logger_File.cpp:73-90`). Check the boot message and the `DSF` drop counts on the bench run.
 - **Capacity:** the bench run measures the eMMC size. Recording hours ≈ (capacity − 0.5 GB `LOG_FILE_MB_FREE` margin, `AP_Logger.cpp:140`) ÷ 0.44 GB/h; for example 4 GB gives about 8 h. Old logs are deleted automatically below that margin.
@@ -323,14 +323,15 @@ The test team fills in the `⟨…⟩` placeholders below from this checklist:
 3. Power on while parked in open sky. Within about 60 s the LED goes from blue blinking to green blinking. If the LED is solid red, power-cycle once, then stop and report.
 4. **RM3100 calibration:** nothing to do on site. It is fitted offline from the log, using the headings covered during normal driving. Make sure the route turns through all compass directions: the urban grid, roundabouts and loops in the drive plan.
 
-**Drive plan (about 65 min)**
+**Drive plan (about 80 min, Geelong; no tunnel)**
 
 | Segment | Duration | Purpose |
 |---|---|---|
 | Static, open sky | 5 min | GNSS convergence, IMU bias and noise, PPK start |
 | Clean open-sky road (ring road/highway) | 15 min | baseline |
 | Overpasses / short bridges, several in a row | 10 min | short outages |
-| Tunnel, ≥ 30 s inside (ideally 1-2 min) | — | full blockage |
+| Railway underpass, passed through 3-4 times | 5 min | short full blockages |
+| Multistorey car park: drive in, up and down at least 2-3 levels, one 1-2 min stop inside, drive out | 10 min | long full blockage with ramps, turns and a zero-velocity stop (the long-coast test); GNSS re-acquisition at the exit |
 | Tree-canopy road | 10 min | partial sky |
 | Urban canyon (downtown grid) with many 90° turns, plus roundabouts and at least one loop | 15 min | multipath and partial sky; heading coverage for the RM3100 calibration and heading observability |
 | 5 static stops of 30-60 s, at least 2 under cover | spread through | zero-velocity reference |
@@ -374,6 +375,7 @@ The replay harness owns everything beyond that (see `2026-10-26-replay-harness-d
 | Car body or mount hardware distorts the RM3100 | No magnetic base or added steel near the unit; calibration in the mounted position from the drive's heading coverage; compare first-half and second-half fits. |
 | The suction-cup mount puts the RM3100 closer to the roof steel than designed (stronger hard/soft iron, more attitude-dependent distortion) | The drive's heading coverage and the \|B\|/inclination validity mask carry more weight. Replay's course-over-ground cross-check (GNSS course at speed vs calibrated RM3100 heading) is the guard on truth quality. Record the mount height so its effect can be compared across drives. |
 | Magnetic base, or a laptop attached at power-up in the field | Field Procedure warnings; purple LED that never turns blue = download mode. |
+| Multistorey car park: steel and rebar disturb the RM3100 inside the structure | Expected. Those samples are excluded by the \|B\|/inclination validity mask and not used for calibration or heading truth. GNSS re-acquisition at the exit (time to first fix, SFRBX burst, RAWX recovery) is part of the test, not a fault. |
 | No dedicated calibration circles: RM3100 calibration quality depends on the route covering all headings | Drive plan asks for an urban grid, roundabouts and a loop. Replay grades the calibration per log (heading coverage, residual, \|B\|/inclination). A log with poor coverage is flagged, not used as heading truth. |
 | 6S pack connected directly to the unit (~22-25 V) | Bold warning in the Field Procedure, regulator output checked with a meter before every drive, keyed/labelled leads. |
 | Regulator brown-out or noise on 5 V (ignition-free, but long leads near the battery) | Bench item 2a B1c; regulator rated ≥ 2× the measured current. |
