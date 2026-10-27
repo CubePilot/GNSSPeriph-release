@@ -23,7 +23,7 @@
 
 ## Review Focus
 
-1. **USB at boot**: a laptop (host enumerates within 5 s) must give download mode with no log; 6S via a 5 V regulator (VBUS, no host) must log. Verify on the bench (B1a/B1b). No firmware test can cover it.
+1. **USB at boot**: a laptop (host enumerates within 5 s) must give download mode with no log; VBUS without a host must log; field power is 6S directly (no VBUS), which logs from boot. Verify on the bench (B1a/B1b). No firmware test can cover it.
 2. **RAWX larger than 80 measurements**: the frame must reach `UBXR` intact. Covered by the raw-capture task's buffer-size static assert and the field-tool round-trip with a 150-measurement frame.
 3. **UBX frame spanning record boundaries, and records lost mid-frame**: the extractor must drop only the damaged frame and report a `Seq` gap. Covered by `test_ubxr_gap_drops_only_damaged_frame`.
 4. **No CAN bus at all**: GPS, compass and IMU still log. Covered by `CAN_NODE 125` in the defaults plus bench check B2.
@@ -259,7 +259,7 @@ Goal of this phase: the logger puts the X20 into the spec's message set at 92160
 
 ## Phase: USB Power Mode
 
-The only field power is USB. VBUS ≥ 4 V at boot used to mean download mode for good, so the field supply (6S via a 5 V regulator) logged nothing.
+The only field power is USB. VBUS ≥ 4 V at boot used to mean download mode for good, so USB power without a host logged nothing. (Field power was later confirmed as 6S directly into the unit, which takes the no-VBUS path; this phase still matters for USB-only power.)
 
 ### Task: Decide USB Mode by Host Enumeration
 
@@ -275,4 +275,4 @@ The only field power is USB. VBUS ≥ 4 V at boot used to mean download mode for
 
 - [x] **Step 1:** Implement.
 - [x] **Step 2:** Build both boards; release-identity check.
-- [ ] **Step 3:** Bench B1a (laptop → purple, drive visible, no new log) and B1b (6S via 5 V regulator → purple 5 s, then blue/green, `.bin` grows, laptop plugged in mid-log shows no drive).
+- [ ] **Step 3:** Bench B1a (laptop → purple, drive visible, no new log) and B1b (6S battery, no USB → blue/green from boot, `.bin` grows) and B1c (laptop plugged in mid-log on battery → no drive, logging continues).
