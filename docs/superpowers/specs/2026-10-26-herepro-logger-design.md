@@ -11,9 +11,9 @@ Every `file:line` below refers to this repo at `b84ff44` (submodule `ardupilot` 
 What the test team sees:
 
 ```
-Power bank → HereProX USB port. Purple for 5 s, then blue blinking, then green blinking once there's a fix.
+6S battery → 5 V regulator (BEC / 6S-to-USB step-down) → HereProX USB port. Purple for 5 s, then blue blinking, then green blinking once there's a fix.
 ... drive ...
-Unplug the power bank. Plug HereProX USB into the laptop → purple LED, drive appears →
+Unplug the regulator lead. Plug HereProX USB into the laptop → purple LED, drive appears →
   APM/LOGS/00000007.BIN  (300 MB)
 Copy it to  hereprox-1234_2026-11-02_city-loop_L07.bin
 ```
@@ -269,11 +269,11 @@ SCR_ENABLE 0
 ```
 
 - AP_Periph never sets soft-arm, so the logger needs `LOG_DISARMED` (`AP_Logger.cpp:97-102,636`).
-- The only field power is USB (a power bank). VBUS alone therefore can't mean "download". The logger build decides by **USB host enumeration**:
+- The only field power is USB: a 6S battery through a 5 V regulator into the USB port. VBUS alone therefore can't mean "download". The logger build decides by **USB host enumeration**:
   - At boot with VBUS ≥ 4 V, USB + MSD come up as in release, and the device is marked USB-connected, so `LOG_DISARMED 2` doesn't log yet.
   - After a **5 s grace period** (`USB_ENUMERATION_GRACE_MS`), `logger_usb_update()` checks `USBD2.state`:
     - `USB_ACTIVE` (a host has configured the device) → **download mode**: MSD stays on, no logging, purple LED.
-    - Anything else → **power bank**: `msdStop`, `usbDisconnectBus`, `clear_usb_connected()` (new `AP_HAL_ChibiOS/GPIO.h` method), and logging starts.
+    - Anything else → **power only** (regulator, no host): `msdStop`, `usbDisconnectBus`, `clear_usb_connected()` (new `AP_HAL_ChibiOS/GPIO.h` method), and logging starts.
   - Why 5 s: host attach debounce (100 ms) + bus reset + descriptor reads + SET_CONFIGURATION normally finish in under 1 s. 5 s covers slow hubs and costs 5 s of log during the static start.
   - Release's per-loop `set_usb_connected()` re-assert in `update()` is compiled out in the logger build, so the decision holds until reboot.
   - Once logging has started, MSD stays off until reboot. Plugging in a laptop mid-log keeps logging and exposes no drive. To download: unplug, then plug the laptop into USB alone.
@@ -298,18 +298,22 @@ Trigger alternatives (not chosen): DroneCAN arming (`NotifyState` `VEHICLE_STATE
 
 The test team fills in the `⟨…⟩` placeholders below from this checklist:
 
-1. **Power connector:** confirm the USB connector type and a power-bank cable that fits → `⟨connector / cable⟩`.
-2. **Current draw:** run 10 min from a USB power meter with a 3D fix and logging (green LED) → `⟨mA @ 5 V⟩`. Also confirm the power bank doesn't shut off at that load (some banks cut out below about 100 mA).
+1. **Power connector:** confirm the unit's USB connector type and the cable from the 5 V regulator's output that fits it → `⟨connector / cable⟩`. Measure the regulator output with a meter before connecting the unit: it must read 5.0-5.3 V.
+2. **Current draw:** run 10 min through a USB power meter between the regulator and the unit, with a 3D fix and logging (green LED) → `⟨mA @ 5 V⟩`. Also note the regulator's efficiency from its datasheet → `⟨η⟩` (use 0.85 if unknown).
+2a. **USB mode (B1):**
+   - B1a: laptop alone → stays purple, drive appears, no new log.
+   - B1b: 6S via the 5 V regulator → purple for about 5 s, then blue/green; a `.bin` grows and contains `MSG "USB power only…"`. A laptop plugged in mid-log shows no drive, and logging continues.
+   - B1c: the regulator must not enumerate as a host. A plain BEC/step-down has no USB data lines, so B1b passing confirms it. Also confirm the regulator doesn't brown out at power-up (the LED doesn't flicker or reset).
 3. **eMMC capacity:** connect USB and read the drive size on the laptop → `⟨GB⟩`. Recording hours ≈ (`⟨GB⟩` − 0.5) ÷ 0.44.
 4. **Logging check:** a 10-min log shows rising `UBXR.Seq` with no gaps, `DSF` drops = 0, RAWX `numMeas` > 0, and `ACC`/`GYR` at 1 kHz.
 5. **Receiver link:** the log shows `MSG "X20 cfg ok N/N keys"` (confirms USART3 ↔ X20 UART1 at 921600).
 6. **Timing:**
    - `EXTS` and TIM-TM2 counts increase together at 1 Hz.
    - `PPSE` arrives at 1 Hz (confirms the timepulse is on PG2 / GPIO 100). If there is no `PPSE`, report it. Strobe timing still works.
-7. **Battery runtime:** power-bank Wh × 0.8 ÷ (`⟨mA⟩` × 5 V) → `⟨h⟩`. Use a bank that outlasts the planned drive by 50%.
+7. **Battery runtime:** h ≈ battery Wh × 0.8 × `⟨η⟩` ÷ (`⟨mA⟩` × 5 V ÷ 1000) → `⟨h⟩`. Battery Wh = 6 × 3.7 V × Ah (e.g. 5 Ah 6S ≈ 111 Wh). The 0.8 keeps the pack above storage voltage, and `⟨η⟩` is the regulator loss. Use a pack that outlasts the planned drive by 50%.
 
 **Before driving**
-1. **Power:** a 5 V USB power bank into the unit's USB port (`⟨connector / cable⟩`). The unit stays purple for 5 s, then starts logging. Never start a drive with a laptop attached: a laptop that enumerates puts the unit in download mode (purple, no log). Runtime ≈ `⟨h⟩`; eMMC fits about `⟨recording hours⟩`.
+1. **Power:** 6S battery → 5 V regulator (BEC / 6S-to-USB step-down) → the unit's USB port (`⟨connector / cable⟩`). **Never connect the 6S pack to the unit directly: a 6S pack is about 22-25 V and will destroy it. Always check the regulator output reads 5 V before plugging in.** Secure the battery and regulator so they can't short against the car body or come loose. The unit stays purple for 5 s, then starts logging. Never start a drive with a laptop attached: a laptop that enumerates puts the unit in download mode (purple, no log). Runtime ≈ `⟨h⟩`; eMMC fits about `⟨recording hours⟩`.
 2. **Mounting (the RM3100 is the heading reference):**
    - Use the **existing suction-cup roof mount** from previous tests, on the roof centreline, with clear sky.
    - **No magnetic base, and no added steel near the unit** (no steel brackets, clamps, screws, tools or phone mounts nearby). Keep it away from roof racks, other antennas and cabled devices where possible.
@@ -340,7 +344,7 @@ Drive normally (no hard manoeuvres needed). Don't stop the logger between segmen
 **Out of scope:** a paired Here4 (F9P) drive (user decision: HereProX only).
 
 **After driving**
-1. Power off by unplugging the power bank.
+1. Power off by unplugging the regulator lead from the unit (then disconnect the 6S pack from the regulator).
 2. Plug the unit's USB into a laptop (nothing else connected). The LED stays purple, and a drive appears. If it turns blue after 5 s, the laptop didn't enumerate it: unplug and try another port or cable. A laptop plugged in while logging does **not** show the drive; always unplug and replug.
 3. Copy `APM/LOGS/*.BIN` (the newest numbers) and rename each one as `hereprox-<BRD_SERIAL_NUM>_<YYYY-MM-DD>_<route>_L<NN>.bin`, e.g. `hereprox-1234_2026-11-02_city-loop_L07.bin`. Use the date of the drive. The serial is on the label, and it is also inside the log.
 4. Eject the drive before unplugging. Don't delete logs on the unit until they have been uploaded and checked.
@@ -371,14 +375,16 @@ The replay harness owns everything beyond that (see `2026-10-26-replay-harness-d
 | Car body or mount hardware distorts the RM3100 | No magnetic base or added steel near the unit; calibration in the mounted position at start and end; compare the two fits. |
 | The suction-cup mount puts the RM3100 closer to the roof steel than designed (stronger hard/soft iron, more attitude-dependent distortion) | The in-car calibration circles and the \|B\|/inclination validity mask carry more weight. Replay's course-over-ground cross-check (GNSS course at speed vs calibrated RM3100 heading) is the guard on truth quality. Record the mount height so its effect can be compared across drives. |
 | Magnetic base, or a laptop attached at power-up in the field | Field Procedure warnings; purple LED that never turns blue = download mode. |
-| Host slower than 5 s to enumerate, or a power bank with data lines that look like a host | Bench checks B1a/B1b; `MSG "USB power only…"` in every log records the decision. |
+| 6S pack connected directly to the unit (~22-25 V) | Bold warning in the Field Procedure, regulator output checked with a meter before every drive, keyed/labelled leads. |
+| Regulator brown-out or noise on 5 V (ignition-free, but long leads near the battery) | Bench item 2a B1c; regulator rated ≥ 2× the measured current. |
+| Host slower than 5 s to enumerate, or a regulator with data lines that look like a host | Bench checks B1a/B1b; `MSG "USB power only…"` in every log records the decision. |
 | Product X20 support missing in AP_GPS (MON-VER, VALSET-only, CFG-TP) | Out of scope for the logger. Flag it to the tight-coupling and product workstreams. |
 
 ## Decisions Made
 
 1. Raw UBX is stored in the `.bin` (`UBXR`), not in a separate `.ubx` file and not by extending `GRXS`. `GRXH/GRXS` are turned off.
 2. AP_Periph configures the X20 by direct VALSET (RAM layer, user OK) with `GPS_AUTO_CONFIG 0`. The driver is not made X20-aware in this workstream.
-3. Logging starts at boot (`LOG_DISARMED 2`). USB host enumeration within 5 s = download mode; VBUS without a host = power bank, log. `CAN_NODE 125` gets past the DNA gate.
+3. Logging starts at boot (`LOG_DISARMED 2`). USB host enumeration within 5 s = download mode; VBUS without a host (6S via 5 V regulator) = log. `CAN_NODE 125` gets past the DNA gate.
 4. IMU: raw `ACC/GYR` at 1 kHz (car campaign, user decision) plus new `IMUD` delta angles/velocities at 400 Hz. `INS_GYR_CAL 0`.
 5. Time sync: a 1 Hz EXTINT strobe with TIM-TM2 (`EXTS` message), plus a per-epoch `GEPO` iTOW↔TimeUS pair. A PPS edge log (`PPSE`) with TIM-TP is the cross-check (user decision).
 6. The RM3100 is the primary heading truth: on the existing suction-cup roof mount and calibrated in place, fitted offline from logged calibration circles. New float `MAGF` message.
