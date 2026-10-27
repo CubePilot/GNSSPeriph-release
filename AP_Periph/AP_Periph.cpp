@@ -63,10 +63,34 @@ const struct LogStructure AP_Periph_FW::log_structure[] = {
     LOG_COMMON_STRUCTURES,
 };
 
+#ifdef HAL_USB_VBUS_SENS_CHAN
+/*
+  VBUS at boot: a laptop enumerates the device (USB_ACTIVE) within the
+  grace period -> download mode (MSD on, no logging). Anything else is a
+  power bank -> stop MSD, drop the USB-connected flag, log. Once logging
+  has started MSD stays off until reboot, so the eMMC never has two users.
+ */
+void AP_Periph_FW::logger_usb_update()
+{
+    if (usb_mode != UsbMode::PENDING || int32_t(AP_HAL::millis() - usb_decision_ms) < 0) {
+        return;
+    }
+    if (USBD2.state == USB_ACTIVE) {
+        usb_mode = UsbMode::DOWNLOAD;
+        return;
+    }
+    msdStop(&USBMSD1);
+    usbDisconnectBus(&USBD2);
+    ((ChibiOS::GPIO*)(hal.gpio))->clear_usb_connected();
+    usb_mode = UsbMode::POWER_ONLY;
+}
+#endif
+
 // extra lines written at the start of every log file
 void AP_Periph_FW::write_logger_startup_messages()
 {
     logger.Write_MessageF("HereProX-logger serial=%ld", (long)g.serial_number.get());
+    logger.Write_MessageF("USB %s", usb_mode == UsbMode::POWER_ONLY ? "power only (no host), MSD off" : "not powered");
     // re-poll X20 config/version so every log file carries them
     x20.info_requested = true;
 }
@@ -116,6 +140,11 @@ void AP_Periph_FW::init()
         palClearLine(HAL_GPIO_PIN_SLEEP_CAN2);
     } else {
         ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();
+#if AP_PERIPH_LOGGER
+        // VBUS alone can be a power bank: decide once a host has had time to enumerate
+        usb_mode = UsbMode::PENDING;
+        usb_decision_ms = AP_HAL::millis() + USB_ENUMERATION_GRACE_MS;
+#endif
     }
 #endif
     stm32_watchdog_pat();
@@ -288,9 +317,14 @@ void AP_Periph_FW::rcout_update()
 void AP_Periph_FW::update()
 {
 #ifdef HAL_USB_VBUS_SENS_CHAN
+#if AP_PERIPH_LOGGER
+    // logger build: USB mode is decided once at boot by host enumeration
+    logger_usb_update();
+#else
     if (vbus_voltage_source->voltage_latest() > 4.0f) {
         ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();
     }
+#endif
 #endif
 
 #ifdef ENABLE_BASE_MODE

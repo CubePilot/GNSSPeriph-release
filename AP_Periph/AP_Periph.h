@@ -226,6 +226,20 @@ public:
     uint64_t timesync_predict_mcu_us(uint16_t week, double tow_s) const;
 
     void update_logger_led();
+
+    // USB mode from host enumeration (VBUS alone may be a power bank).
+    // 5 s covers host attach debounce, reset and SET_CONFIGURATION
+    // (typically < 1 s) with margin for slow hubs.
+    static constexpr uint32_t USB_ENUMERATION_GRACE_MS = 5000;
+    enum class UsbMode : uint8_t {
+        NO_VBUS,
+        PENDING,
+        DOWNLOAD,
+        POWER_ONLY,
+    };
+    UsbMode usb_mode;
+    uint32_t usb_decision_ms;
+    void logger_usb_update();
 #endif
 
     // setup the var_info table

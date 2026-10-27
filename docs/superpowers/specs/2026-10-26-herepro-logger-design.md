@@ -11,9 +11,9 @@ Every `file:line` below refers to this repo at `b84ff44` (submodule `ardupilot` 
 What the test team sees:
 
 ```
-Power bank → HereProX (CAN-port power lead), 30 s later the LED blinks green once per second.
+Power bank → HereProX USB port. Purple for 5 s, then blue blinking, then green blinking once there's a fix.
 ... drive ...
-Power off. Plug HereProX USB into the laptop → drive "HEREPROX" appears →
+Unplug the power bank. Plug HereProX USB into the laptop → purple LED, drive appears →
   APM/LOGS/00000007.BIN  (300 MB)
 Copy it to  hereprox-1234_2026-11-02_city-loop_L07.bin
 ```
@@ -269,7 +269,15 @@ SCR_ENABLE 0
 ```
 
 - AP_Periph never sets soft-arm, so the logger needs `LOG_DISARMED` (`AP_Logger.cpp:97-102,636`).
-- Value 2 is used so that **USB VBUS = retrieval mode**. At boot AP_Periph stops MSD only when VBUS < 4 V (`AP_Periph/AP_Periph.cpp:83-94`), and it marks USB connected (`:93,244`), which `LOG_DISARMED 2` honours.
+- The only field power is USB (a power bank). VBUS alone therefore can't mean "download". The logger build decides by **USB host enumeration**:
+  - At boot with VBUS ≥ 4 V, USB + MSD come up as in release, and the device is marked USB-connected, so `LOG_DISARMED 2` doesn't log yet.
+  - After a **5 s grace period** (`USB_ENUMERATION_GRACE_MS`), `logger_usb_update()` checks `USBD2.state`:
+    - `USB_ACTIVE` (a host has configured the device) → **download mode**: MSD stays on, no logging, purple LED.
+    - Anything else → **power bank**: `msdStop`, `usbDisconnectBus`, `clear_usb_connected()` (new `AP_HAL_ChibiOS/GPIO.h` method), and logging starts.
+  - Why 5 s: host attach debounce (100 ms) + bus reset + descriptor reads + SET_CONFIGURATION normally finish in under 1 s. 5 s covers slow hubs and costs 5 s of log during the static start.
+  - Release's per-loop `set_usb_connected()` re-assert in `update()` is compiled out in the logger build, so the decision holds until reboot.
+  - Once logging has started, MSD stays off until reboot. Plugging in a laptop mid-log keeps logging and exposes no drive. To download: unplug, then plug the laptop into USB alone.
+- Other power inputs on HerePro (not relied on): `VDD_5V_SENS` on PC4 (5 V rail sense, `HerePro/hwdef.dat:214`) and `ANALOG_CAN_VOLTAGE1/2` on PA1/PA2 (CAN connector voltage sense, `:178-179`). Per the user, the unit can't be powered over CAN in practice.
 - This prevents the host and the firmware from writing to the FAT at the same time. MSD also blocks firmware FS access while the host is mounted (`AP_HAL_ChibiOS/sdcard.cpp:34-44,136-146`).
 - Logs land in `/APM/LOGS/NNNNNNNN.BIN` (`sdcard.cpp:248` creates `/APM`).
 
@@ -282,7 +290,7 @@ Trigger alternatives (not chosen): DroneCAN arming (`NotifyState` `VEHICLE_STATE
 | green blink 1 Hz | logging, 3D fix |
 | blue blink 1 Hz | logging, no fix yet |
 | solid red | not logging: no eMMC, write error, X20 config failed, or `DSF` drops in the last 10 s |
-| solid purple | USB retrieval mode (not logging) |
+| solid purple | USB download mode: a host enumerated within 5 s of boot (not logging); also the first 5 s after power-up on any USB power |
 
 ## Field Procedure
 
@@ -290,8 +298,8 @@ Trigger alternatives (not chosen): DroneCAN arming (`NotifyState` `VEHICLE_STATE
 
 The test team fills in the `⟨…⟩` placeholders below from this checklist:
 
-1. **Power connector:** confirm the CAN-port pins used for 5 V/GND and the lead that mates with it → `⟨connector / lead⟩`.
-2. **Current draw:** run 10 min on the bench supply through that connector with a 3D fix and logging (green LED) → `⟨mA @ 5 V⟩`.
+1. **Power connector:** confirm the USB connector type and a power-bank cable that fits → `⟨connector / cable⟩`.
+2. **Current draw:** run 10 min from a USB power meter with a 3D fix and logging (green LED) → `⟨mA @ 5 V⟩`. Also confirm the power bank doesn't shut off at that load (some banks cut out below about 100 mA).
 3. **eMMC capacity:** connect USB and read the drive size on the laptop → `⟨GB⟩`. Recording hours ≈ (`⟨GB⟩` − 0.5) ÷ 0.44.
 4. **Logging check:** a 10-min log shows rising `UBXR.Seq` with no gaps, `DSF` drops = 0, RAWX `numMeas` > 0, and `ACC`/`GYR` at 1 kHz.
 5. **Receiver link:** the log shows `MSG "X20 cfg ok N/N keys"` (confirms USART3 ↔ X20 UART1 at 921600).
@@ -301,7 +309,7 @@ The test team fills in the `⟨…⟩` placeholders below from this checklist:
 7. **Battery runtime:** power-bank Wh × 0.8 ÷ (`⟨mA⟩` × 5 V) → `⟨h⟩`. Use a bank that outlasts the planned drive by 50%.
 
 **Before driving**
-1. **Power:** use a 5 V USB power bank feeding the **CAN-port power lead** (`⟨connector / lead⟩`). Do **not** power through the USB port: USB power puts the unit into retrieval mode and nothing is logged. Runtime ≈ `⟨h⟩`; eMMC fits about `⟨recording hours⟩`.
+1. **Power:** a 5 V USB power bank into the unit's USB port (`⟨connector / cable⟩`). The unit stays purple for 5 s, then starts logging. Never start a drive with a laptop attached: a laptop that enumerates puts the unit in download mode (purple, no log). Runtime ≈ `⟨h⟩`; eMMC fits about `⟨recording hours⟩`.
 2. **Mounting (the RM3100 is the heading reference):**
    - Put the unit on a **non-metal mast** (PVC, wood or GRP) at least 30 cm above the roof, on the roof centreline, with clear sky. The mast base can be a suction cup or a roof-bar clamp. **No magnetic base, no steel hose clamps or screws near the unit.**
    - Keep it at least 1 m from roof racks, other antennas and cabled devices.
@@ -332,7 +340,7 @@ Drive normally (no hard manoeuvres needed). Don't stop the logger between segmen
 
 **After driving**
 1. Power off by unplugging the power bank.
-2. Connect the unit's USB to a laptop. Only USB, no power bank. The LED turns purple, and a drive appears.
+2. Plug the unit's USB into a laptop (nothing else connected). The LED stays purple, and a drive appears. If it turns blue after 5 s, the laptop didn't enumerate it: unplug and try another port or cable. A laptop plugged in while logging does **not** show the drive; always unplug and replug.
 3. Copy `APM/LOGS/*.BIN` (the newest numbers) and rename each one as `hereprox-<BRD_SERIAL_NUM>_<YYYY-MM-DD>_<route>_L<NN>.bin`, e.g. `hereprox-1234_2026-11-02_city-loop_L07.bin`. Use the date of the drive. The serial is on the label, and it is also inside the log.
 4. Eject the drive before unplugging. Don't delete logs on the unit until they have been uploaded and checked.
 5. Add a one-line `notes.txt` (driver, weather, mount photos, anything odd). It's optional, since the log is self-describing.
@@ -360,14 +368,15 @@ The replay harness owns everything beyond that (see `2026-10-26-replay-harness-d
 | Gyro calibrated while moving | `INS_GYR_CAL 0`. |
 | Strobe/TM2 pairing breaks (missed edge, counter wrap) | `count`-based pairing, the PPS/TIM-TP cross-check, then UART jitter correction (ms-level). |
 | Car body or mast hardware distorts the RM3100 | Non-metal mast ≥ 30 cm above the roof, no steel fasteners, calibration in the mounted position at start and end, compare the two fits. |
-| Magnetic base or USB power used in the field | Field Procedure warnings, purple LED in USB mode. |
+| Magnetic base, or a laptop attached at power-up in the field | Field Procedure warnings; purple LED that never turns blue = download mode. |
+| Host slower than 5 s to enumerate, or a power bank with data lines that look like a host | Bench checks B1a/B1b; `MSG "USB power only…"` in every log records the decision. |
 | Product X20 support missing in AP_GPS (MON-VER, VALSET-only, CFG-TP) | Out of scope for the logger. Flag it to the tight-coupling and product workstreams. |
 
 ## Decisions Made
 
 1. Raw UBX is stored in the `.bin` (`UBXR`), not in a separate `.ubx` file and not by extending `GRXS`. `GRXH/GRXS` are turned off.
 2. AP_Periph configures the X20 by direct VALSET (RAM layer, user OK) with `GPS_AUTO_CONFIG 0`. The driver is not made X20-aware in this workstream.
-3. Logging starts at boot (`LOG_DISARMED 2`), with USB VBUS = retrieval mode. `CAN_NODE 125` gets past the DNA gate.
+3. Logging starts at boot (`LOG_DISARMED 2`). USB host enumeration within 5 s = download mode; VBUS without a host = power bank, log. `CAN_NODE 125` gets past the DNA gate.
 4. IMU: raw `ACC/GYR` at 1 kHz (car campaign, user decision) plus new `IMUD` delta angles/velocities at 400 Hz. `INS_GYR_CAL 0`.
 5. Time sync: a 1 Hz EXTINT strobe with TIM-TM2 (`EXTS` message), plus a per-epoch `GEPO` iTOW↔TimeUS pair. A PPS edge log (`PPSE`) with TIM-TP is the cross-check (user decision).
 6. The RM3100 is the primary heading truth: mast-mounted and calibrated in place, fitted offline from logged calibration circles. New float `MAGF` message.

@@ -23,7 +23,7 @@
 
 ## Review Focus
 
-1. **USB connected at boot**: the unit must enter retrieval mode and must not open a log. Verify on the bench (bench check B1). No firmware test can cover it.
+1. **USB at boot**: a laptop (host enumerates within 5 s) must give download mode with no log; a power bank (VBUS, no host) must log. Verify on the bench (B1a/B1b). No firmware test can cover it.
 2. **RAWX larger than 80 measurements**: the frame must reach `UBXR` intact. Covered by the raw-capture task's buffer-size static assert and the field-tool round-trip with a 150-measurement frame.
 3. **UBX frame spanning record boundaries, and records lost mid-frame**: the extractor must drop only the damaged frame and report a `Seq` gap. Covered by `test_ubxr_gap_drops_only_damaged_frame`.
 4. **No CAN bus at all**: GPS, compass and IMU still log. Covered by `CAN_NODE 125` in the defaults plus bench check B2.
@@ -254,3 +254,25 @@ Goal of this phase: the logger puts the X20 into the spec's message set at 92160
 - [ ] **Step 1:** Write the README.
 - [ ] **Step 2:** Run all Python checks: `python3 -m unittest discover -s scripts/logger -v`. Expected: all pass.
 - [ ] **Step 3:** Report: a final build of both boards, sizes, and the list of bench checks B1-B11 still open.
+
+---
+
+## Phase: USB Power Mode
+
+The only field power is USB. VBUS ≥ 4 V at boot used to mean download mode for good, so a power bank logged nothing.
+
+### Task: Decide USB Mode by Host Enumeration
+
+**Files:**
+- Modify (submodule): `ardupilot/libraries/AP_HAL_ChibiOS/GPIO.h` (`void clear_usb_connected()`)
+- Modify: `AP_Periph/AP_Periph.h`, `AP_Periph/AP_Periph.cpp` (all under `#if AP_PERIPH_LOGGER`)
+
+**Interfaces:**
+- `enum class UsbMode { NO_VBUS, PENDING, DOWNLOAD, POWER_ONLY }`, `USB_ENUMERATION_GRACE_MS = 5000`, `void logger_usb_update();`.
+- The VBUS branch of `init()` sets `PENDING`. `update()` calls `logger_usb_update()` instead of re-asserting `set_usb_connected()`.
+- After the grace period: `USBD2.state == USB_ACTIVE` → `DOWNLOAD`. Otherwise → `msdStop`, `usbDisconnectBus`, `clear_usb_connected()`, `POWER_ONLY`.
+- The startup `MSG "USB …"` records the mode.
+
+- [x] **Step 1:** Implement.
+- [x] **Step 2:** Build both boards; release-identity check.
+- [ ] **Step 3:** Bench B1a (laptop → purple, drive visible, no new log) and B1b (power bank → purple 5 s, then blue/green, `.bin` grows, laptop plugged in mid-log shows no drive).
