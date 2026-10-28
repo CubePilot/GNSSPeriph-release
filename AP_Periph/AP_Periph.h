@@ -180,14 +180,22 @@ public:
 
     // X20 configuration (logger_x20.cpp)
     enum class X20State : uint8_t {
-        SEND_VALSET,
+        SEND_VALSET_BLIND,  // not detected yet: send every 250 ms at whatever baud is being probed
+        SEND_VALSET,        // detected: send once at the known baud
+        WAIT_ACK,
+        WAIT_REDETECT,
         READBACK,
         WAIT_READBACK,
         DONE,
+        FAILED,
     };
+    enum class X20Ack : uint8_t { NONE, ACK, NAK };
     struct {
         X20State state;
         uint32_t step_ms;
+        uint8_t attempts;
+        X20Ack ack_result;
+        bool saw_lost;
         uint8_t matched_keys;
         bool readback_done;
         bool info_requested;

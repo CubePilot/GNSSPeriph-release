@@ -6,8 +6,12 @@
   RAM-layer CFG-VALSET itself. The X20 emits no UBX by default, so the
   driver can't detect it until this config lands: the VALSET is written
   straight to the GPS UART every 250 ms while the driver probes baud
-  rates, until the driver reports a receiver. The config is then read
-  back with CFG-VALGET and compared, and MON-VER / MON-GNSS are polled.
+  rates. A receiver that already outputs UBX (e.g. production flash
+  config at 38400) is detected at once; in both cases, once the driver
+  has a lock the VALSET is sent at the known baud, its ACK/NAK logged,
+  the driver re-detects after the baud change, and the config is read
+  back with CFG-VALGET and compared (up to 5 attempts). MON-VER /
+  MON-GNSS are polled with each readback.
   Every response also lands in UBXR. The readback and polls are
   repeated at each new log file.
  */
@@ -52,6 +56,13 @@ constexpr uint8_t MSG_CFG_VALGET = 0x8B;
 constexpr uint8_t MSG_MON_VER = 0x04;
 constexpr uint8_t MSG_MON_GNSS = 0x28;
 constexpr uint8_t LAYER_RAM = 0x01;
+constexpr uint32_t KEY_UART1_BAUDRATE = 0x40520001;
+constexpr uint32_t MIN_UART1_BAUDRATE = 460800;
+constexpr uint32_t X20_BLIND_PERIOD_MS = 250;
+constexpr uint32_t X20_ACK_TIMEOUT_MS = 1000;
+constexpr uint32_t X20_NO_BAUD_CHANGE_MS = 6000;      // driver keeps its lock if the baud didn't change
+constexpr uint32_t X20_REDETECT_TIMEOUT_MS = 30000;
+constexpr uint8_t X20_MAX_ATTEMPTS = 5;
 
 // value width in bytes from the key's size field (bits 28-30)
 uint8_t config_value_size(uint32_t key)
@@ -152,20 +163,61 @@ void AP_Periph_FW::x20_config_update()
     const bool detected = gps.status() != AP_GPS::NO_GPS;
 
     switch (x20.state) {
-    case X20State::SEND_VALSET:
+    case X20State::SEND_VALSET_BLIND:
+        // silent receiver: the driver can't detect it until the config lands
         if (detected) {
-            x20.state = X20State::READBACK;
-            x20.step_ms = now_ms;
+            x20.state = X20State::SEND_VALSET;
             break;
         }
-        if (now_ms - x20.step_ms >= 250) {
+        if (now_ms - x20.step_ms >= X20_BLIND_PERIOD_MS) {
             x20.step_ms = now_ms;
             x20_send_valset();
         }
         break;
 
+    case X20State::SEND_VALSET:
+        // driver has a lock, so the receiver's current baud is known
+        if (x20.attempts >= X20_MAX_ATTEMPTS) {
+            logger.Write_MessageF("X20 cfg FAILED after %u attempts", unsigned(x20.attempts));
+            x20.state = X20State::FAILED;
+            break;
+        }
+        if (x20_send_valset()) {
+            x20.attempts++;
+            x20.ack_result = X20Ack::NONE;
+            x20.saw_lost = false;
+            logger.Write_MessageF("X20 VALSET attempt %u", unsigned(x20.attempts));
+            x20.state = X20State::WAIT_ACK;
+            x20.step_ms = now_ms;
+        }
+        break;
+
+    case X20State::WAIT_ACK:
+        if (x20.ack_result == X20Ack::NONE && now_ms - x20.step_ms < X20_ACK_TIMEOUT_MS) {
+            break;
+        }
+        logger.Write_MessageF("X20 VALSET %s", x20.ack_result == X20Ack::ACK ? "ACK" :
+                              x20.ack_result == X20Ack::NAK ? "NAK" : "no ACK");
+        x20.state = X20State::WAIT_REDETECT;
+        x20.step_ms = now_ms;
+        break;
+
+    case X20State::WAIT_REDETECT:
+        // a baud change makes the driver lose the receiver and re-probe
+        if (!detected) {
+            x20.saw_lost = true;
+            if (now_ms - x20.step_ms > X20_REDETECT_TIMEOUT_MS) {
+                logger.Write_MessageF("X20 not re-detected after VALSET");
+                x20.state = X20State::SEND_VALSET_BLIND;
+            }
+        } else if (x20.saw_lost || now_ms - x20.step_ms > X20_NO_BAUD_CHANGE_MS) {
+            x20.state = X20State::READBACK;
+            x20.step_ms = now_ms;
+        }
+        break;
+
     case X20State::READBACK:
-        // let the driver settle at the new baud before polling
+        // let the driver settle before polling
         if (now_ms - x20.step_ms < 1000) {
             break;
         }
@@ -183,14 +235,12 @@ void AP_Periph_FW::x20_config_update()
     case X20State::WAIT_READBACK:
         if (x20.readback_done) {
             x20.ok = (x20.matched_keys == ARRAY_SIZE(x20_config));
-            logger.Write_MessageF("X20 cfg %s %u/%u keys", x20.ok ? "ok" : "FAILED",
+            logger.Write_MessageF("X20 cfg %s %u/%u keys", x20.ok ? "ok" : "mismatch",
                                   unsigned(x20.matched_keys), unsigned(ARRAY_SIZE(x20_config)));
-            x20.state = X20State::DONE;
+            x20.state = x20.ok ? X20State::DONE : X20State::SEND_VALSET;
         } else if (now_ms - x20.step_ms > 3000) {
-            x20.ok = false;
-            logger.Write_MessageF("X20 cfg FAILED no VALGET reply");
+            logger.Write_MessageF("X20 no VALGET reply");
             x20.state = X20State::SEND_VALSET;
-            x20.step_ms = now_ms;
         }
         break;
 
@@ -198,20 +248,26 @@ void AP_Periph_FW::x20_config_update()
         if (!detected) {
             // receiver lost (power cycle / reset): its RAM config is gone
             x20.ok = false;
-            x20.state = X20State::SEND_VALSET;
+            x20.attempts = 0;
+            x20.state = X20State::SEND_VALSET_BLIND;
         } else if (x20.info_requested) {
             x20.state = X20State::READBACK;
             x20.step_ms = now_ms - 1000;
         }
+        break;
+
+    case X20State::FAILED:
         break;
     }
 }
 
 void AP_Periph_FW::x20_on_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t payload_len)
 {
-    if (msg_class == CLASS_ACK && payload_len >= 2 && payload[0] == CLASS_CFG && payload[1] == MSG_CFG_VALSET) {
-        if (msg_id == 0x00) {
-            logger.Write_MessageF("X20 VALSET NAK");
+    if (msg_class == CLASS_ACK && payload_len >= 2 && payload[0] == CLASS_CFG) {
+        if (payload[1] == MSG_CFG_VALSET && x20.state == X20State::WAIT_ACK) {
+            x20.ack_result = (msg_id == 0x01) ? X20Ack::ACK : X20Ack::NAK;
+        } else if (payload[1] == MSG_CFG_VALGET && msg_id == 0x00) {
+            logger.Write_MessageF("X20 VALGET NAK");
         }
         return;
     }
@@ -231,13 +287,17 @@ void AP_Periph_FW::x20_on_frame(uint8_t msg_class, uint8_t msg_id, const uint8_t
         uint64_t value = 0;
         memcpy(&value, &payload[ofs + 4], size);
         for (const auto &item : x20_config) {
-            if (item.key == key) {
-                known_key_seen = true;
-                if (item.value == value) {
-                    x20.matched_keys++;
-                } else {
-                    logger.Write_MessageF("X20 key 0x%08lx=%lu want %lu", (unsigned long)key, (unsigned long)value, (unsigned long)item.value);
-                }
+            if (item.key != key) {
+                continue;
+            }
+            known_key_seen = true;
+            // the driver's detection blob may move the receiver to 460800; any rate that carries the stream is fine
+            const bool match = (key == KEY_UART1_BAUDRATE) ? (value >= MIN_UART1_BAUDRATE) : (item.value == value);
+            if (match) {
+                x20.matched_keys++;
+            }
+            if (!match || key == KEY_UART1_BAUDRATE) {
+                logger.Write_MessageF("X20 key 0x%08lx=%lu want %lu", (unsigned long)key, (unsigned long)value, (unsigned long)item.value);
             }
         }
         ofs += 4 + size;

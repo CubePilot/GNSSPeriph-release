@@ -276,3 +276,24 @@ The only field power is USB. VBUS ≥ 4 V at boot used to mean download mode for
 - [x] **Step 1:** Implement.
 - [x] **Step 2:** Build both boards; release-identity check.
 - [ ] **Step 3:** Bench B1a (laptop → purple, drive visible, no new log) and B1b (6S battery, no USB → blue/green from boot, `.bin` grows) and B1c (laptop plugged in mid-log on battery → no drive, logging continues).
+
+---
+
+## Phase: Bench Fixes (log 00000019.BIN)
+
+### Task: X20 Config for Receivers That Already Output UBX
+
+**Files:** `AP_Periph/logger_x20.cpp`, `AP_Periph/AP_Periph.h`
+
+- States: `SEND_VALSET_BLIND` (250 ms, pre-detect) → `SEND_VALSET` (once, at the known baud) → `WAIT_ACK` (≤ 1 s) → `WAIT_REDETECT` (lost + re-detected, or 6 s without loss) → `READBACK` → `WAIT_READBACK` → `DONE`. A mismatch or no reply goes back to `SEND_VALSET`; after 5 attempts → `FAILED`.
+- MSG per attempt and per ACK/NAK. The UART1 baud key matches when ≥ 460800.
+- [x] Implement, build both boards, release-identity check.
+- [ ] Bench: `X20 cfg ok 15/15 keys` on the unit from 00000019.BIN. `UBXR` contains RAWX/SFRBX/TM2, and `GEPO` is present.
+
+### Task: Raw IMU Log Averaging
+
+**Files (submodule):** `AP_InertialSensor_config.h` (`AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ`, default 0), `AP_InertialSensor_Backend.h/.cpp` (same-line `AP_INS_WRITE_*_RAW` macros), `AP_InertialSensor_Logging.cpp` (averaging at end of file). **Outer:** `HereProX-logger/hwdef.dat` (`AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ 1000`).
+
+- N = round(raw rate ÷ target), mean of N samples, stamped with the middle sample. ICM-45686 at 3.2 kHz → N = 3 (~1067 Hz); ICM-42688 at 1 kHz → N = 1.
+- [x] Implement, build both boards, release-identity check.
+- [ ] Bench: `ACC`/`GYR` ≈ 1067 Hz, log growth ≈ 455 MB/h.

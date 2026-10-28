@@ -27,7 +27,7 @@ Copy it to  hereprox-1234_2026-11-02_city-loop_L07.bin
 | Feature | HerePro hwdef |
 |---|---|
 | MCU / flash | STM32H757, 2 MB, 256 KB BL reserve (`HerePro/hwdef.dat:5,26-30,89`) |
-| IMU | ICM-42688 on SPI4 (`HerePro/hwdef.dat:138,152`) |
+| IMU | declared ICM-42688 on SPI4 (`HerePro/hwdef.dat:138,152`). **The bench unit actually carries an ICM-45686**: `INS_ACC_ID` 3867682 = devtype 0x3B (`AP_InertialSensor_Backend.h:130`) in bench log `00000019.BIN`. The Invensensev3 driver picks the part by WHOAMI. |
 | Mag | RM3100 on SPI1, `ROTATION_PITCH_180` (`HerePro/hwdef.dat:150,156`) |
 | eMMC | SDMMC1 8-bit, `HAL_SDMMC_TYPE_EMMC` (`HerePro/hwdef.dat:159-171,175`) |
 | USB MSD | `HAL_USE_USB_MSD 1` on OTG2 HS (`HerePro/hwdef.dat:240`) |
@@ -93,8 +93,17 @@ Two existing AP_Periph behaviours must change for a standalone unit:
 
 **Decision: the logger configures the X20 itself, and the driver only parses.**
 - Set `GPS_AUTO_CONFIG 0`. The driver then stops sending config (`AP_GPS_UBLOX.cpp:318-320`).
-- AP_Periph sends one VALSET (**RAM layer only**; user OK, and release firmware is unaffected after a reflash or power cycle) through `AP_GPS::inject_data()` (`AP_GPS.h:760-761`) once the driver reports the port is detected. It repeats the VALSET until a `UBX-ACK-ACK` is seen in the raw stream.
-- The baud change goes last. The driver re-detects at 921600 (`AP_GPS.cpp:74` includes 921600).
+- AP_Periph writes the VALSET (**RAM layer only**; user OK, and release firmware is unaffected after a reflash or power cycle) straight to the GPS UART. Two receiver states must both work:
+  - **Silent** (no UBX output): the driver can't detect it. The VALSET is sent every 250 ms while the driver probes baud rates, until it detects the receiver.
+  - **Already outputting UBX** (the bench unit: production flash config with NAV-PVT at 5 Hz, 38400 baud, NMEA on, DYNMODEL 8): the driver detects it at once.
+- Then, in both cases, with the driver locked (baud known):
+  - send the VALSET once and log `X20 VALSET attempt N`,
+  - wait up to 1 s for the ACK and log `ACK`/`NAK`/`no ACK`,
+  - wait for the driver to lose the receiver and re-detect it after the switch to 921600 (`AP_GPS.cpp:74` includes 921600), or 6 s with no loss if the baud didn't change,
+  - then read back with CFG-VALGET and compare.
+- A mismatch or missing reply retries the VALSET, up to 5 attempts (then `X20 cfg FAILED after 5 attempts`, red LED).
+- The UART1 baud key matches if ≥ 460800, and the actual value is always logged. The driver's detection blob (legacy PUBX/CFG-PRT) could move the receiver to 460800, and an exact match on that key would retry forever.
+- Bench log `00000019.BIN` showed why both paths are needed: the first build skipped the VALSET for a receiver that was already detected, and the readback was 5/15.
 - The F9 boot-config prime still runs regardless of auto-config (`AP_GPS_UBLOX.cpp:313-315`). It uses legacy `CFG-MSG` and gives up after 30 tries (`:2148-2155`), so on an X20 it costs only startup time.
 - Fixing the driver for X20 (MON-VER string, VALSET-only rates, CFG-TP keys) is product work and out of scope here; it is listed as a risk.
 
@@ -155,12 +164,13 @@ Both rates are logged, for gap (c):
 
 | Message | Content | Rate | Source |
 |---|---|---|---|
-| `ACC` / `GYR` (existing) | pre-filter sensor samples with per-sample `SampleUS` | **1 kHz for the car campaign** (user decision): ICM-42688 base ODR (`AP_InertialSensor_Invensensev3.cpp:694`) with `INS_GYRO_RATE 0`. The H7 default would be 2 kHz (`AP_InertialSensor.cpp:84-85`). | `log_accel_raw`/`log_gyro_raw` (`AP_InertialSensor_Backend.cpp:443-470,706-722`), enabled by `imu.set_log_raw_bit()` (filter state is `Pre`, `INS_RAW_LOG_OPT 0`) |
+| `ACC` / `GYR` (existing) | pre-filter sensor samples. In the logger build these are **block averages of N = round(raw rate ÷ 1000) consecutive samples**, stamped with the middle sample's `SampleUS` (`AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ 1000`). | **~1 kHz for the car campaign** (user decision). The ICM-45686 runs at 3.2 kHz minimum in this driver (`AP_InertialSensor_Invensensev3.cpp:871`), which gave 3219 Hz raw in the bench log. N = 3 → ~1067 Hz. An ICM-42688 unit (1 kHz base, `:694`) gets N = 1, i.e. every sample. `INS_GYRO_RATE` doesn't affect the ICM-45686 floor. | `log_accel_raw`/`log_gyro_raw` (`AP_InertialSensor_Backend.cpp:443-470,706-722`), enabled by `imu.set_log_raw_bit()` (filter state is `Pre`, `INS_RAW_LOG_OPT 0`) |
 | `IMUD` (new) | `TimeUS, DelAngX/Y/Z, DelAngDT, DelVelX/Y/Z, DelVelDT, Temp` | loop rate 400 Hz (`IMU_SAMPLE_RATE 400`; range 0-1000, `AP_Periph/Parameters.cpp:213`) | `imu.get_delta_angle/velocity` (as already used in `sensor_imu.cpp:23-31`): the coning-corrected integrals the filter consumes |
 
 - `INS_GYR_CAL 0`. Otherwise boot-time gyro calibration runs (`AP_InertialSensor.cpp:934-937`) and silently bakes a bias into the data whenever the car is moving at power-on. The filter must estimate bias anyway.
 - Accel offsets stay at their default of zero, and `INS_*` params are recorded in `PARM`.
-- `INS_GYRO_RATE 1` (2 kHz) is available for later flights; it doubles the raw IMU log bandwidth.
+- For later flights, the native 3.2 kHz stream can be logged by setting `AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ 0` (≈830 MB/h measured on the bench).
+- Averaging rather than dropping samples keeps the integrals (delta angle and velocity) exact and reduces aliasing.
 
 ## Time Alignment
 
@@ -224,12 +234,12 @@ The all-band epoch estimate is about 130 measurements in open sky (GPS ~25, GAL 
 
 | Stream | Log rate | Log kB/s |
 |---|---|---|
-| ACC+GYR, 32 B each @ 1 kHz | 2000/s | 64 |
+| ACC+GYR, 32 B each @ ~1067 Hz | 2134/s | 68 |
 | IMUD ~48 B @ 400 Hz | 400/s | 19 |
 | UBXR: RAWX 4.2 KB × 5 Hz | 33 rec/epoch | 24 |
 | UBXR: SFRBX (≈3 kB/s raw), PVT, DOP, TM2, TP, NAV-SIG/SAT/MON-RF/SYS @ 1 Hz | — | 9 |
 | GPS/GPA/GEPO/EXTS/PPSE, MAG + MAGF @ 80 Hz, PM/DSF/MSG | — | 6 |
-| **Total** | | **≈122 kB/s ≈ 440 MB/h** |
+| **Total** | | **≈126 kB/s ≈ 455 MB/h** |
 
 - **X20 UART1 load:** about 21 kB/s RAWX + 3 SFRBX + 4 others ≈ 28 kB/s, i.e. 61% of 460800 (46 kB/s at 10 bits per byte) and 30% of 921600.
   - All-band RAWX at 10 Hz is ≈ 42 kB/s by itself, about 90% of 460800.
@@ -237,7 +247,7 @@ The all-band epoch estimate is about 130 measurements in open sky (GPS ~25, GAL 
   - 921600 is chosen over staying at 460800, because 61% leaves no margin for SFRBX bursts after a reacquisition (e.g. leaving the multistorey car park).
   - Raise to 10 Hz only if replay shows 5 Hz limits the filter.
 - **eMMC throughput:** 122 kB/s is far below what SDMMC 8-bit can sustain. The real risk is write-latency stalls (FAT allocation, eMMC garbage collection). `LOG_FILE_BUFSIZE 400` covers about 3 s. The File backend shrinks the buffer if RAM is short and reports it (`AP_Logger_File.cpp:73-90`). Check the boot message and the `DSF` drop counts on the bench run.
-- **Capacity:** the bench run measures the eMMC size. Recording hours ≈ (capacity − 0.5 GB `LOG_FILE_MB_FREE` margin, `AP_Logger.cpp:140`) ÷ 0.44 GB/h; for example 4 GB gives about 8 h. Old logs are deleted automatically below that margin.
+- **Capacity:** the bench run measures the eMMC size. Recording hours ≈ (capacity − 0.5 GB `LOG_FILE_MB_FREE` margin, `AP_Logger.cpp:140`) ÷ 0.46 GB/h; for example 4 GB gives about 7.5 h. Old logs are deleted automatically below that margin.
 
 ## Flash and RAM Budget
 
@@ -293,6 +303,22 @@ Trigger alternatives (not chosen): DroneCAN arming (`NotifyState` `VEHICLE_STATE
 | solid red | not logging: no eMMC, write error, X20 config failed, or `DSF` drops in the last 10 s |
 | solid purple | USB download mode: a host enumerated within 5 s of boot (not logging); also the first 5 s after power-up on any USB power |
 
+## Bench Results
+
+**`00000019.BIN`** (first bench run, firmware `00e5bc98`, 110 s, battery power):
+
+| Check | Result |
+|---|---|
+| B1b battery boot | ✓ `MSG "USB not powered"`, logging from boot |
+| B4 receiver wiring | ✓ GPS on USART3: detected at 38400, 3D fix at 6.3 s, 22-23 sats, HDOP 0.64-1.18, `GPS` at 5 Hz |
+| B7 strobe | ✓ `EXTS` at 1.0 Hz (TIM-TM2 not yet enabled, see B5) |
+| B8 timepulse | ✓ `PPSE` at 1.0 Hz, so the timepulse is on PG2 / GPIO 100 |
+| B3 rates | ✓ `IMUD` 400 Hz, `MAGF` 80 Hz. ✗ `ACC`/`GYR` 3219 Hz (ICM-45686 floor): fixed by block averaging to ~1067 Hz |
+| Log integrity | ✓ one `DSF` drop at 2.0 s (boot), none after |
+| B5 X20 config | ✗ `X20 cfg FAILED 5/15`: the VALSET was never sent to an already-detected receiver. Fixed (see X20 Receiver Configuration). Receiver's shipped config: DYNMODEL 8, NMEA on, RAWX/SFRBX/NAV-SIG/NAV-SAT/MON-SYS/TIM-TM2/TIM-TP off, 38400 baud |
+| B6 / GEPO | ✗ no RAWX, so no `GEPO`. Depends on B5; retest |
+| Serial | `BRD_SERIAL_NUM` unset (`serial=0`). The MCU UID is in the startup `MSG`, and file naming uses the label serial |
+
 ## Field Procedure
 
 **Bench measurement (once, before the first drive)**
@@ -305,7 +331,7 @@ The test team fills in the `⟨…⟩` placeholders below from this checklist:
    - B1a: laptop on USB alone, no battery → stays purple, drive appears, no new log is created.
    - B1b: 6S battery, no USB → blue/green from boot (no purple), a `.bin` grows and contains `MSG "USB not powered"`.
    - B1c: while logging on the battery, plug a laptop into USB → no drive appears on the laptop, the LED stays blue/green, and the `.bin` keeps growing. Unplug the laptop and confirm logging continued without a gap (no `DSF` drops, IMUD continuous).
-3. **eMMC capacity:** connect USB and read the drive size on the laptop → `⟨GB⟩`. Recording hours ≈ (`⟨GB⟩` − 0.5) ÷ 0.44.
+3. **eMMC capacity:** connect USB and read the drive size on the laptop → `⟨GB⟩`. Recording hours ≈ (`⟨GB⟩` − 0.5) ÷ 0.46.
 4. **Logging check:** a 10-min log shows rising `UBXR.Seq` with no gaps, `DSF` drops = 0, RAWX `numMeas` > 0, and `ACC`/`GYR` at 1 kHz.
 5. **Receiver link:** the log shows `MSG "X20 cfg ok N/N keys"` (confirms USART3 ↔ X20 UART1 at 921600).
 6. **Timing:**
