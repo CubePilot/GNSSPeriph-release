@@ -30,7 +30,7 @@ struct ConfigItem {
 const ConfigItem x20_config[] {
     { 0x30210001, 200 },    // CFG-RATE-MEAS 200 ms (5 Hz)
     { 0x30210002, 1 },      // CFG-RATE-NAV
-    { 0x20110021, 4 },      // CFG-NAVSPG-DYNMODEL automotive
+    { 0x20110021, 8 },      // CFG-NAVSPG-DYNMODEL airborne <4g (product tuning target)
     { 0x10740002, 0 },      // CFG-UART1OUTPROT-NMEA off
     { 0x20910007, 1 },      // MSGOUT NAV-PVT
     { 0x20910039, 1 },      // MSGOUT NAV-DOP

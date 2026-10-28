@@ -16,7 +16,8 @@ GPS_AUTO_CONFIG 0
 GPS_RAW_DATA 0
 ROVER_ENABLE 0
 
-# IMU: 400 Hz loop, 1 kHz raw, no boot gyro cal
+# IMU: 400 Hz loop, raw ACC/GYR at the sensor's native rate (ICM-45686: 3.2 kHz floor,
+# INS_GYRO_RATE has no effect on it), no boot gyro cal
 IMU_SAMPLE_RATE 400
 INS_GYRO_RATE 0
 INS_GYR_CAL 0

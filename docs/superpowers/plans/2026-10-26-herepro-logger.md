@@ -290,10 +290,8 @@ The only field power is USB. VBUS ≥ 4 V at boot used to mean download mode for
 - [x] Implement, build both boards, release-identity check.
 - [ ] Bench: `X20 cfg ok 15/15 keys` on the unit from 00000019.BIN. `UBXR` contains RAWX/SFRBX/TM2, and `GEPO` is present.
 
-### Task: Raw IMU Log Averaging
+### Task: Raw IMU Rate
 
-**Files (submodule):** `AP_InertialSensor_config.h` (`AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ`, default 0), `AP_InertialSensor_Backend.h/.cpp` (same-line `AP_INS_WRITE_*_RAW` macros), `AP_InertialSensor_Logging.cpp` (averaging at end of file). **Outer:** `HereProX-logger/hwdef.dat` (`AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ 1000`).
-
-- N = round(raw rate ÷ target), mean of N samples, stamped with the middle sample. ICM-45686 at 3.2 kHz → N = 3 (~1067 Hz); ICM-42688 at 1 kHz → N = 1.
-- [x] Implement, build both boards, release-identity check.
-- [ ] Bench: `ACC`/`GYR` ≈ 1067 Hz, log growth ≈ 455 MB/h.
+- The bench unit's ICM-45686 runs at a 3.2 kHz floor, and raw ACC/GYR log at ~3219 Hz. A 1 kHz block-average option was built (ardupilot db0013f2d1, default off), but the logger build no longer enables it (user decision: keep the native rate). Whether to drop db0013f2d1 before push is pending with the user. Budget is ≈ 264 kB/s ≈ 0.95 GB/h with RAWX.
+- DYNMODEL is set to 8 (airborne <4g), the product tuning target (user decision).
+- [ ] Bench: `ACC`/`GYR` ≈ 3.2 kHz; `DSF` drops only at log open; log growth ≈ 0.95 GB/h with RAWX present.

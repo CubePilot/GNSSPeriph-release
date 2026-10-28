@@ -12,10 +12,6 @@ define AP_GPS_UBLOX_FRAME_CB_ENABLED 1
 define AP_COMPASS_RAW_SAMPLE_CB_ENABLED 1
 define UBLOX_MAX_RXM_RAWX_SATS 255
 
-# raw ACC/GYR logged as block averages near 1 kHz: the fitted IMU is an
-# ICM-45686 (WHOAMI), which the driver runs at 3.2/6.4 kHz only
-define AP_INERTIALSENSOR_RAW_LOG_TARGET_HZ 1000
-
 # receiver timepulse on PG2 (F97, GPIO 100): assumed, confirm on bench.
 # the logger owns the PPS interrupt; keep the driver's CFG-TP5 path off
 define HAL_GPIO_PPS 100
