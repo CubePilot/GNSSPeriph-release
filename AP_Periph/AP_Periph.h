@@ -248,6 +248,17 @@ public:
     UsbMode usb_mode;
     uint32_t usb_decision_ms;
     void logger_usb_update();
+
+    // LOG_FORMAT=1: stop logging, reformat the eMMC, reboot
+    enum class FormatState : uint8_t {
+        IDLE,
+        STOPPING,
+        FORMATTING,
+        REBOOTING,
+    };
+    FormatState format_state;
+    uint32_t format_step_ms;
+    void logger_format_update();
 #endif
 
     // setup the var_info table

@@ -61,6 +61,7 @@ public:
         k_param_gps_rover,
         k_param_gps_type,
         k_param_can2_force_en,
+        k_param_log_format,
     };
 
     AP_Int16 format_version;
@@ -111,6 +112,7 @@ public:
     AP_Int8 can2_force_en;
 #if AP_PERIPH_LOGGER
     AP_Int32 log_bitmask;
+    AP_Int8 log_format;
 #endif
     Parameters() {}
 };

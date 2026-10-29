@@ -25,6 +25,7 @@
 #include <hal.h>
 #include <AP_HAL_ChibiOS/GPIO.h>
 #include "AP_Periph.h"
+#include <AP_Filesystem/AP_Filesystem.h>
 #include <stdio.h>
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
@@ -85,6 +86,73 @@ void AP_Periph_FW::logger_usb_update()
     usb_mode = UsbMode::POWER_ONLY;
 }
 #endif
+
+/*
+  LOG_FORMAT=1: stop logging, reformat the eMMC, reboot into a fresh
+  filesystem. Refused in download mode, where the host owns the drive.
+ */
+void AP_Periph_FW::logger_format_update()
+{
+    const uint32_t now_ms = AP_HAL::millis();
+    switch (format_state) {
+    case FormatState::IDLE:
+        if (g.log_format == 0) {
+            return;
+        }
+        g.log_format.set_and_save(0);
+#ifdef HAL_USB_VBUS_SENS_CHAN
+        if (usb_mode == UsbMode::DOWNLOAD || usb_mode == UsbMode::PENDING) {
+            can_printf("LOG_FORMAT refused: USB host attached");
+            return;
+        }
+#endif
+        can_printf("LOG_FORMAT: stopping logging");
+        // keep the logger from opening a new file on the old filesystem
+        logger._params.log_disarmed.set(AP_Logger::LogDisarmed::NONE);
+        logger.StopLogging();
+        format_state = FormatState::STOPPING;
+        format_step_ms = now_ms;
+        break;
+
+    case FormatState::STOPPING:
+        // give the IO thread time to flush and close the current log
+        if (now_ms - format_step_ms < 2000) {
+            return;
+        }
+        if (!AP::FS().format()) {
+            can_printf("LOG_FORMAT: format not supported");
+            format_state = FormatState::REBOOTING;
+        } else {
+            can_printf("LOG_FORMAT: formatting eMMC");
+            format_state = FormatState::FORMATTING;
+        }
+        format_step_ms = now_ms;
+        break;
+
+    case FormatState::FORMATTING:
+        switch (AP::FS().get_format_status()) {
+        case AP_Filesystem_Backend::FormatStatus::SUCCESS:
+            can_printf("LOG_FORMAT: done, rebooting");
+            break;
+        case AP_Filesystem_Backend::FormatStatus::FAILURE:
+            can_printf("LOG_FORMAT: failed, rebooting");
+            break;
+        default:
+            return;
+        }
+        format_state = FormatState::REBOOTING;
+        format_step_ms = now_ms;
+        break;
+
+    case FormatState::REBOOTING:
+        // let the status message go out on CAN first
+        if (now_ms - format_step_ms > 1000) {
+            prepare_reboot();
+            hal.scheduler->reboot(false);
+        }
+        break;
+    }
+}
 
 // extra lines written at the start of every log file
 void AP_Periph_FW::write_logger_startup_messages()
@@ -320,6 +388,7 @@ void AP_Periph_FW::update()
 #if AP_PERIPH_LOGGER
     // logger build: USB mode is decided once at boot by host enumeration
     logger_usb_update();
+    logger_format_update();
 #else
     if (vbus_voltage_source->voltage_latest() > 4.0f) {
         ((ChibiOS::GPIO*)(hal.gpio))->set_usb_connected();

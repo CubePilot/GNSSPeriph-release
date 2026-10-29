@@ -238,6 +238,13 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Bitmask: 2:GPS,3:Compass,4:IMU raw
     // @User: Standard
     GSCALAR(log_bitmask, "LOG_BITMASK", 28),
+
+    // @Param: LOG_FORMAT
+    // @DisplayName: Erase logs and format eMMC
+    // @Description: Set to 1 to stop logging, erase all logs by reformatting the eMMC, then reboot. Resets to 0 itself. Refused while the drive is open to a USB host.
+    // @Values: 0:Idle,1:Format now
+    // @User: Standard
+    GSCALAR(log_format, "LOG_FORMAT", 0),
 #endif
     AP_VAREND
 };
