@@ -743,7 +743,7 @@ bool can_check_update(void)
 {
     bool ret = false;
 #if HAL_RAM_RESERVE_START >= 256
-    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)HAL_RAM0_START;
+    struct app_bootloader_comms *comms = (struct app_bootloader_comms *)APP_COMMS_RAM_START;
     // Ensure the data is flushed into RAM
     cacheBufferFlush(comms, sizeof(struct app_bootloader_comms));
     if (comms->magic == APP_BOOTLOADER_COMMS_MAGIC) {

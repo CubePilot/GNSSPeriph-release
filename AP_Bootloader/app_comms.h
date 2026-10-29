@@ -8,6 +8,10 @@
 
 #define APP_BOOTLOADER_COMMS_MAGIC 0xc544ad9a
 
+#ifndef APP_COMMS_RAM_START
+#define APP_COMMS_RAM_START HAL_RAM0_START
+#endif
+
 struct app_bootloader_comms {
     uint32_t magic;
     uint32_t reserved[4];

@@ -32,6 +32,12 @@ FLASH_BOOTLOADER_LOAD_KB 256
 
 define HAL_LED_ON 1
 
+# this needs to be defined same as app HAL_RAM0_START
+define APP_COMMS_RAM_START 0x30000000
+
+# sdcard.h tests this before usbcfg.h defaults it
+define HAL_HAVE_USB_CDC_MSD 0
+
 #PA4 LED_ENABLE OUTPUT HIGH
 
 PD8 USART3_TX USART3
